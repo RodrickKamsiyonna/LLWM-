@@ -17,7 +17,7 @@ import signal
 import warnings
 from contextlib import contextmanager
 from collections import deque
-from nanochat.common import compute_init, autodetect_device_type, COMPUTE_DTYPE
+from nanochat.common import synchronize_device, compute_init, autodetect_device_type, COMPUTE_DTYPE
 from nanochat.checkpoint_manager import load_model
 
 # -----------------------------------------------------------------------------
@@ -148,12 +148,12 @@ def sample_next_token(logits, rng, temperature=1.0, top_k=None):
         vals, idx = torch.topk(logits, k, dim=-1)
         vals = vals / temperature
         probs = F.softmax(vals, dim=-1)
-        choice = torch.multinomial(probs, num_samples=1, generator=rng)
+        choice = torch.multinomial(probs.cpu() if probs.device.type == "xla" else probs, num_samples=1, generator=rng).to(probs.device)
         return idx.gather(1, choice)
     else:
         logits = logits / temperature
         probs = F.softmax(logits, dim=-1)
-        return torch.multinomial(probs, num_samples=1, generator=rng)
+        return torch.multinomial(probs.cpu() if probs.device.type == "xla" else probs, num_samples=1, generator=rng).to(probs.device)
 
 # -----------------------------------------------------------------------------
 
@@ -179,7 +179,7 @@ class Engine:
         device = self.model.get_device()
         # Allocate the KV cache in the compute dtype so it matches what the forward pass emits
         dtype = COMPUTE_DTYPE
-        rng = torch.Generator(device=device)
+        rng = torch.Generator(device="cpu" if device.type == "xla" else device)
         rng.manual_seed(seed)
 
         # Get the special tokens we need to coordinate the tool use state machine
@@ -317,7 +317,7 @@ if __name__ == "__main__":
     prompt_tokens = tokenizer.encode("The chemical formula of water is", prepend=bos_token_id)
     # generate the reference sequence using the model.generate() function
     generated_tokens = []
-    torch.cuda.synchronize()
+    synchronize_device(device_type)
     t0 = time.time()
     stream = model.generate(prompt_tokens, **kwargs)
     for token in stream:
@@ -325,7 +325,7 @@ if __name__ == "__main__":
         chunk = tokenizer.decode([token])
         print(chunk, end="", flush=True)
     print()
-    torch.cuda.synchronize()
+    synchronize_device(device_type)
     t1 = time.time()
     print(f"Reference time: {t1 - t0:.2f}s")
     reference_ids = generated_tokens
@@ -333,7 +333,7 @@ if __name__ == "__main__":
     generated_tokens = []
     engine = Engine(model, tokenizer)
     stream = engine.generate(prompt_tokens, num_samples=1, **kwargs) # note: runs in fp32
-    torch.cuda.synchronize()
+    synchronize_device(device_type)
     t0 = time.time()
     for token_column, token_masks in stream:
         token = token_column[0] # only print out the first row
@@ -341,7 +341,7 @@ if __name__ == "__main__":
         chunk = tokenizer.decode([token])
         print(chunk, end="", flush=True)
     print()
-    torch.cuda.synchronize()
+    synchronize_device(device_type)
     t1 = time.time()
     print(f"Engine time: {t1 - t0:.2f}s")
     # compare the two sequences

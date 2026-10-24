@@ -39,7 +39,7 @@ import json
 import time
 import torch
 
-from nanochat.common import compute_init, compute_cleanup, autodetect_device_type, get_peak_bandwidth, get_peak_flops
+from nanochat.common import synchronize_device, compute_init, compute_cleanup, autodetect_device_type, get_peak_bandwidth, get_peak_flops
 from nanochat.checkpoint_manager import load_model
 from nanochat.engine import Engine
 
@@ -55,8 +55,9 @@ def weight_bytes(model):
 def bench_generate(engine, prompt_tokens, batch_size, decode_tokens, temperature):
     """Run one timed generation. Returns dict of measurements."""
     device = engine.model.get_device()
-    torch.cuda.reset_peak_memory_stats(device)
-    torch.cuda.synchronize(device)
+    if device.type == "cuda":
+        torch.cuda.reset_peak_memory_stats(device)
+    synchronize_device(device.type)
 
     generator = engine.generate(prompt_tokens, num_samples=batch_size,
                                 max_tokens=decode_tokens, temperature=temperature)
@@ -64,7 +65,7 @@ def bench_generate(engine, prompt_tokens, batch_size, decode_tokens, temperature
     # batch_size rows, and samples the first token: that is the TTFT.
     t_start = time.perf_counter()
     next(generator)
-    torch.cuda.synchronize(device)
+    synchronize_device(device.type)
     ttft = time.perf_counter() - t_start
 
     # Every subsequent next() is one decode step for all rows.
@@ -75,10 +76,10 @@ def bench_generate(engine, prompt_tokens, batch_size, decode_tokens, temperature
             next(generator)
         except StopIteration:
             break
-        torch.cuda.synchronize(device)
+        synchronize_device(device.type)
         step_times.append(time.perf_counter() - t0)
 
-    peak_vram = torch.cuda.max_memory_allocated(device)
+    peak_vram = torch.cuda.max_memory_allocated(device) if device.type == "cuda" else 0
     return dict(ttft=ttft, step_times=step_times, peak_vram=peak_vram)
 
 def build_prompt(tokenizer, num_tokens):
@@ -106,7 +107,7 @@ def main():
     args = parser.parse_args()
 
     device_type = autodetect_device_type()
-    assert device_type == "cuda", "infer_bench currently assumes a CUDA GPU (for timing and VRAM measurement)"
+
     ddp, ddp_rank, ddp_local_rank, ddp_world_size, device = compute_init(device_type)
     assert ddp_world_size == 1, "infer_bench is a single GPU benchmark, run without torchrun"
 
@@ -123,10 +124,10 @@ def main():
 
     # ------------------------------------------------------------------------
     # Static card: inference cost implied by the architecture, before measuring
-    device_name = torch.cuda.get_device_name(device)
+    device_name = torch.cuda.get_device_name(device) if device.type == "cuda" else "TPU (roofline unavailable)"
     peak_bw = get_peak_bandwidth(device_name)
     peak_flops = get_peak_flops(device_name)
-    total_vram = torch.cuda.get_device_properties(device).total_memory
+    total_vram = torch.cuda.get_device_properties(device).total_memory if device.type == "cuda" else 0
     w_bytes = weight_bytes(model)
     num_params = sum(p.numel() for p in model.parameters())
     kv_store = model.kv_bytes_per_token()

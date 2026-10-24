@@ -13,6 +13,14 @@ import torch
 import torch.distributed as dist
 from torch import Tensor
 from nanochat.common import COMPUTE_DTYPE
+from functools import wraps
+
+def _compile_kernel(fn):
+    compiled = torch.compile(fn, dynamic=False, fullgraph=True)
+    @wraps(fn)
+    def dispatch(*args, **kwargs):
+        return fn(*args, **kwargs) if args[0].device.type == "xla" else compiled(*args, **kwargs)
+    return dispatch
 
 # -----------------------------------------------------------------------------
 """
@@ -20,7 +28,7 @@ Good old AdamW optimizer, fused kernel.
 https://arxiv.org/abs/1711.05101
 """
 
-@torch.compile(dynamic=False, fullgraph=True)
+@_compile_kernel
 def adamw_step_fused(
     p: Tensor,              # (32768, 768) - parameter tensor
     grad: Tensor,           # (32768, 768) - gradient, same shape as p
@@ -56,7 +64,7 @@ def adamw_step_fused(
     # Compute update and apply
     denom = (exp_avg_sq32 / bias2).sqrt() + eps_t
     step_size = lr_t / bias1
-    p32.add_(exp_avg32 / denom, alpha=-step_size)
+    p32.sub_((exp_avg32 / denom) * step_size)
     # Write back (no-ops in the common case where everything is already fp32)
     p.copy_(p32)
     exp_avg.copy_(exp_avg32)
@@ -108,7 +116,7 @@ polar_express_coeffs = [
 ]
 
 
-@torch.compile(dynamic=False, fullgraph=True)
+@_compile_kernel
 def muon_step_fused(
     stacked_grads: Tensor,          # (12, 768, 3072) - stacked gradients
     stacked_params: Tensor,         # (12, 768, 3072) - stacked parameters
@@ -259,17 +267,20 @@ class MuonAdamW(torch.optim.Optimizer):
     """
     def __init__(self, param_groups: list[dict]):
         super().__init__(param_groups, defaults={})
+        self._scalar_device = next(iter(self.param_groups[0]["params"])).device
+        if self._scalar_device.type != "xla":
+            self._scalar_device = torch.device("cpu")
         # 0-D CPU tensors to avoid torch.compile recompilation when values change
-        self._adamw_step_t = torch.tensor(0.0, dtype=torch.float32, device="cpu")
-        self._adamw_lr_t = torch.tensor(0.0, dtype=torch.float32, device="cpu")
-        self._adamw_beta1_t = torch.tensor(0.0, dtype=torch.float32, device="cpu")
-        self._adamw_beta2_t = torch.tensor(0.0, dtype=torch.float32, device="cpu")
-        self._adamw_eps_t = torch.tensor(0.0, dtype=torch.float32, device="cpu")
-        self._adamw_wd_t = torch.tensor(0.0, dtype=torch.float32, device="cpu")
-        self._muon_momentum_t = torch.tensor(0.0, dtype=torch.float32, device="cpu")
-        self._muon_lr_t = torch.tensor(0.0, dtype=torch.float32, device="cpu")
-        self._muon_wd_t = torch.tensor(0.0, dtype=torch.float32, device="cpu")
-        self._muon_beta2_t = torch.tensor(0.0, dtype=torch.float32, device="cpu")
+        self._adamw_step_t = torch.tensor(0.0, dtype=torch.float32, device=self._scalar_device)
+        self._adamw_lr_t = torch.tensor(0.0, dtype=torch.float32, device=self._scalar_device)
+        self._adamw_beta1_t = torch.tensor(0.0, dtype=torch.float32, device=self._scalar_device)
+        self._adamw_beta2_t = torch.tensor(0.0, dtype=torch.float32, device=self._scalar_device)
+        self._adamw_eps_t = torch.tensor(0.0, dtype=torch.float32, device=self._scalar_device)
+        self._adamw_wd_t = torch.tensor(0.0, dtype=torch.float32, device=self._scalar_device)
+        self._muon_momentum_t = torch.tensor(0.0, dtype=torch.float32, device=self._scalar_device)
+        self._muon_lr_t = torch.tensor(0.0, dtype=torch.float32, device=self._scalar_device)
+        self._muon_wd_t = torch.tensor(0.0, dtype=torch.float32, device=self._scalar_device)
+        self._muon_beta2_t = torch.tensor(0.0, dtype=torch.float32, device=self._scalar_device)
 
     def _reduce_adamw(self, group: dict, world_size: int) -> dict:
         """Launch async reduce ops for AdamW group. Returns info dict with per-param infos."""
@@ -423,10 +434,33 @@ class MuonAdamW(torch.optim.Optimizer):
                 info["future"].wait()
             if info["params"] is not None:
                 # Muon: copy from stacked buffer back to individual params
-                torch._foreach_copy_(info["params"], list(info["stacked_params"][:len(info["params"])].unbind(0)))
+                updates = list(info["stacked_params"][:len(info["params"])].unbind(0))
+                if info["params"][0].device.type == "xla":
+                    for param, updated in zip(info["params"], updates):
+                        param.copy_(updated)
+                else:
+                    torch._foreach_copy_(info["params"], updates)
 
     @torch.no_grad()
     def step(self):
+        active_groups = [group for group in self.param_groups if any(p.grad is not None for p in group['params'])]
+        for group in active_groups:
+            if any(p.grad is None for p in group['params']):
+                raise RuntimeError("Partially active optimizer group; group conditional parameters separately")
+        if self._scalar_device.type == "xla":
+            import torch_xla
+            import torch_xla.core.xla_model as xm
+            # Replicated optimizer: average once after gradient accumulation.
+            xm.reduce_gradients(self)
+            gathers = []
+            for group in active_groups:
+                if group['kind'] == 'adamw':
+                    self._compute_adamw(group, self._reduce_adamw(group, 1), gathers, 0, 1)
+                else:
+                    self._compute_muon(group, self._reduce_muon(group, 1), gathers, 0)
+            self._finish_gathers(gathers)
+            torch_xla.sync()
+            return
         # On a single rank (no multi-rank process group), all communication is skipped
         if dist.is_available() and dist.is_initialized():
             rank = dist.get_rank()
@@ -437,7 +471,7 @@ class MuonAdamW(torch.optim.Optimizer):
 
         # Phase 1: launch all async reduce ops
         reduce_infos: list[dict] = []
-        for group in self.param_groups:
+        for group in active_groups:
             if group['kind'] == 'adamw':
                 reduce_infos.append(self._reduce_adamw(group, world_size))
             elif group['kind'] == 'muon':
@@ -447,7 +481,7 @@ class MuonAdamW(torch.optim.Optimizer):
 
         # Phase 2: wait for reduces, compute updates, launch gathers
         gather_list: list[dict] = []
-        for group, info in zip(self.param_groups, reduce_infos):
+        for group, info in zip(active_groups, reduce_infos):
             if group['kind'] == 'adamw':
                 self._compute_adamw(group, info, gather_list, rank, world_size)
             elif group['kind'] == 'muon':

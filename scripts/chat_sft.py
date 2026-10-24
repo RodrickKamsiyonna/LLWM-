@@ -16,13 +16,14 @@ os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
 import time
 import wandb
 import torch
-from nanochat.common import compute_init, compute_cleanup, print0, DummyWandb, get_base_dir, autodetect_device_type, get_peak_flops, COMPUTE_DTYPE, COMPUTE_DTYPE_REASON, is_ddp_initialized
+from nanochat.common import compile_model, synchronize_device, compute_init, compute_cleanup, print0, DummyWandb, get_base_dir, autodetect_device_type, get_peak_flops, COMPUTE_DTYPE, COMPUTE_DTYPE_REASON, is_ddp_initialized
 from nanochat.tokenizer import get_token_bytes
 from nanochat.checkpoint_manager import save_checkpoint, load_model, load_optimizer_state
 from nanochat.loss_eval import evaluate_bpb
 import torch.distributed as dist
 from nanochat.flash_attention import HAS_FA3
 from nanochat.engine import Engine
+from nanochat.planning_eval import add_planning_args, planning_for_model, PlanningEngine
 from scripts.chat_eval import run_chat_eval
 
 from tasks.common import TaskMixture
@@ -36,7 +37,7 @@ parser = argparse.ArgumentParser(description="Supervised fine-tuning (SFT) the m
 # Logging
 parser.add_argument("--run", type=str, default="dummy", help="wandb run name ('dummy' disables wandb logging)")
 # Runtime
-parser.add_argument("--device-type", type=str, default="", help="cuda|cpu|mps (empty = autodetect)")
+parser.add_argument("--device-type", type=str, default="", help="cuda|cpu|mps|xla (empty = autodetect)")
 # Model loading
 parser.add_argument("--model-tag", type=str, default=None, help="model tag to load from")
 parser.add_argument("--model-step", type=int, default=None, help="model step to load from")
@@ -64,6 +65,7 @@ parser.add_argument("--chatcore-max-sample", type=int, default=24, help="max pro
 # Data mixture
 parser.add_argument("--mmlu-epochs", type=int, default=3, help="number of epochs of MMLU in training mixture (teaches Multiple Choice)")
 parser.add_argument("--gsm8k-epochs", type=int, default=4, help="number of epochs of GSM8K in training mixture (teaches Math and Tool Use)")
+add_planning_args(parser, max_new_tokens=512)
 args = parser.parse_args()
 user_config = vars(args).copy()
 # -----------------------------------------------------------------------------
@@ -73,7 +75,7 @@ device_type = autodetect_device_type() if args.device_type == "" else args.devic
 ddp, ddp_rank, ddp_local_rank, ddp_world_size, device = compute_init(device_type)
 master_process = ddp_rank == 0
 print0(f"COMPUTE_DTYPE: {COMPUTE_DTYPE} ({COMPUTE_DTYPE_REASON})")
-synchronize = torch.cuda.synchronize if device_type == "cuda" else lambda: None
+synchronize = lambda: synchronize_device(device_type)
 get_max_memory = torch.cuda.max_memory_allocated if device_type == "cuda" else lambda: 0
 if device_type == "cuda":
     gpu_device_name = torch.cuda.get_device_name(0)
@@ -92,6 +94,7 @@ if not HAS_FA3:
 
 # Load the model and tokenizer
 model, tokenizer, meta = load_model("base", device, phase="train", model_tag=args.model_tag, step=args.model_step)
+planning = planning_for_model(model, args)
 
 # Inherit training hyperparameters from pretrained checkpoint (None = inherit, explicit value = override)
 pretrain_user_config = meta.get("user_config", {})
@@ -115,7 +118,7 @@ for name, fallback, source in [
         print0(f"Using {name}={arg_val}")
 
 orig_model = model
-model = torch.compile(model, dynamic=False)
+model = compile_model(model, dynamic=False)
 depth = model.config.n_layer
 num_flops_per_token = model.estimate_flops()
 tokens_per_fwdbwd = args.device_batch_size * args.max_seq_len # tokens per iteration for a single rank
@@ -358,7 +361,7 @@ while True:
     chatcore_results = {}
     if args.chatcore_every > 0 and (last_step or (step > 0 and step % args.chatcore_every == 0)):
         model.eval()
-        engine = Engine(orig_model, tokenizer)
+        engine = PlanningEngine(orig_model, tokenizer, planning) if planning is not None else Engine(orig_model, tokenizer)
         all_tasks = ['ARC-Easy', 'ARC-Challenge', 'MMLU', 'GSM8K', 'HumanEval']
         categorical_tasks = {'ARC-Easy', 'ARC-Challenge', 'MMLU'}
         baseline_accuracies = {
@@ -370,7 +373,8 @@ while True:
             limit = args.chatcore_max_cat if task_name in categorical_tasks else args.chatcore_max_sample
             max_problems = None if limit < 0 else limit  # -1 means no limit
             acc = run_chat_eval(task_name, orig_model, tokenizer, engine,
-                                batch_size=args.device_batch_size, max_problems=max_problems)
+                                batch_size=args.device_batch_size, max_problems=max_problems,
+                                max_new_tokens=args.eval_max_new_tokens, planning=planning)
             task_results[task_name] = acc
             print0(f"  {task_name}: {100*acc:.2f}%")
         # Compute ChatCORE metrics (mean centered accuracy, ranges from 0=random to 1=perfect)
@@ -382,8 +386,8 @@ while True:
         wandb_run.log({
             "step": step,
             "total_training_flops": flops_so_far,
-            "chatcore_metric": chatcore,
-            "chatcore_cat": chatcore_cat,
+            ("planned_chatcore_metric" if planning is not None else "chatcore_metric"): chatcore,
+            ("planned_chatcore_cat" if planning is not None else "chatcore_cat"): chatcore_cat,
             **{f"chatcore/{task_name}": acc for task_name, acc in task_results.items()},
         })
         model.train()
@@ -423,7 +427,8 @@ while True:
     synchronize()
     t0 = time.time()
     for micro_step in range(grad_accum_steps):
-        loss = model(x, y)
+        loss_components = model(x, y, return_loss_components=True) if getattr(model.config, "architecture", "gpt") == "llwm" else None
+        loss = loss_components["loss"] if loss_components is not None else model(x, y)
         train_loss = loss.detach() # for logging
         loss = loss / grad_accum_steps # each .backward() is a grad sum => normalize loss here
         if scaler is not None:
@@ -473,6 +478,7 @@ while True:
             "total_training_flops": flops_so_far,
             "total_training_time": total_training_time,
             "train/loss": debiased_smooth_loss,
+            **({f"train/{key}": value.detach().item() for key, value in loss_components.items() if key != "loss"} if loss_components is not None else {}),
             "train/lrm": lrm,
             "train/dt": dt,
             "train/tok_per_sec": tok_per_sec,

@@ -18,6 +18,8 @@ def _detect_compute_dtype():
     env = os.environ.get("NANOCHAT_DTYPE")
     if env is not None:
         return _DTYPE_MAP[env], f"set via NANOCHAT_DTYPE={env}"
+    if os.environ.get("PJRT_DEVICE") == "TPU":
+        return torch.bfloat16, "TPU bf16 compute"
     if torch.cuda.is_available():
         # bf16 requires SM 80+ (Ampere: A100, A10, etc.)
         # Older GPUs like V100 (SM 70) and T4 (SM 75) only have fp16 tensor cores
@@ -116,7 +118,7 @@ def download_file_with_lock(url, filename, postprocess_fn=None):
     return file_path
 
 def print0(s="",**kwargs):
-    ddp_rank = int(os.environ.get('RANK', 0))
+    ddp_rank = get_dist_info()[1]
     if ddp_rank == 0:
         print(s, **kwargs)
 
@@ -149,6 +151,9 @@ def is_ddp_initialized() -> bool:
     return dist.is_available() and dist.is_initialized()
 
 def get_dist_info():
+    if os.environ.get("PJRT_DEVICE") == "TPU":
+        import torch_xla.runtime as xr
+        return xr.world_size() > 1, xr.global_ordinal(), xr.local_ordinal(), xr.world_size()
     if is_ddp_requested():
         # We rely on torchrun's env to decide if we SHOULD init.
         # (Initialization itself happens in compute init.)
@@ -162,6 +167,8 @@ def get_dist_info():
 
 def autodetect_device_type():
     # prefer to use CUDA if available, otherwise use MPS, otherwise fallback on CPU
+    if os.environ.get("PJRT_DEVICE") == "TPU":
+        return "xla"
     if torch.cuda.is_available():
         device_type = "cuda"
     elif torch.backends.mps.is_available():
@@ -174,7 +181,21 @@ def autodetect_device_type():
 def compute_init(device_type="cuda"): # cuda|cpu|mps
     """Basic initialization that we keep doing over and over, so make common."""
 
-    assert device_type in ["cuda", "mps", "cpu"], "Invalid device type atm"
+    if device_type == "xla":
+        if COMPUTE_DTYPE == torch.float16:
+            raise ValueError("TPU training requires bfloat16 or float32; unset NANOCHAT_DTYPE=float16")
+        import torch_xla
+        import torch_xla.runtime as xr
+        import torch_xla.distributed.xla_backend
+        torch.manual_seed(42)
+        device = torch_xla.device()
+        import torch_xla.core.xla_model as xm
+        xm.set_rng_state(42, device)
+        if xr.world_size() > 1 and not dist.is_initialized():
+            dist.init_process_group("xla", init_method="xla://")
+        return xr.world_size() > 1, xr.global_ordinal(), xr.local_ordinal(), xr.world_size(), device
+
+    assert device_type in ["cuda", "mps", "cpu", "xla"], "Invalid device type atm"
     if device_type == "cuda":
         assert torch.cuda.is_available(), "Your PyTorch installation is not configured for CUDA but device_type is 'cuda'"
     if device_type == "mps":
@@ -326,3 +347,16 @@ def get_peak_bandwidth(device_name: str) -> float:
     # Unknown GPU - return inf so MBU shows as 0% rather than a wrong guess
     logger.warning(f"Peak bandwidth undefined for: {device_name}, MBU will show as 0%")
     return float('inf')
+
+
+def synchronize_device(device_type):
+    if device_type == "xla":
+        import torch_xla
+        torch_xla.sync(wait=True)
+    elif device_type == "cuda":
+        torch.cuda.synchronize()
+
+
+def compile_model(model, **kwargs):
+    # XLA lazy tracing already compiles graphs; Inductor targets CPU/CUDA.
+    return model if model.get_device().type == "xla" else torch.compile(model, **kwargs)

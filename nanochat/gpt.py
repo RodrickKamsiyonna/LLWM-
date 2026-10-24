@@ -416,6 +416,9 @@ class GPT(nn.Module):
             'total': total,
         }
 
+    def extra_optimizer_groups(self, matrix_lr, scalar_lr, weight_decay):
+        return []
+
     def setup_optimizer(self, unembedding_lr=0.004, embedding_lr=0.2, matrix_lr=0.02, weight_decay=0.0, scalar_lr=0.5):
         model_dim = self.config.n_embd
 
@@ -427,7 +430,6 @@ class GPT(nn.Module):
         resid_params = [self.resid_lambdas]
         x0_params = [self.x0_lambdas]
         smear_params = [self.smear_gate.weight, self.smear_lambda, self.backout_lambda]
-        assert len(list(self.parameters())) == len(matrix_params) + len(embedding_params) + len(lm_head_params) + len(value_embeds_params) + len(resid_params) + len(x0_params) + len(smear_params)
 
         # Scale the LR for the AdamW parameters by ∝1/√dmodel (tuned for 768 dim model)
         dmodel_lr_scale = (model_dim / 768) ** -0.5
@@ -451,12 +453,16 @@ class GPT(nn.Module):
                 momentum=0.95, ns_steps=5, beta2=0.9, weight_decay=weight_decay,
             ))
 
+        param_groups.extend(self.extra_optimizer_groups(matrix_lr, scalar_lr, weight_decay))
+        grouped = [p for group in param_groups for p in group['params']]
+        assert len(grouped) == len(set(grouped)) and set(grouped) == set(self.parameters()), "Optimizer parameter coverage mismatch"
         optimizer = MuonAdamW(param_groups)
         for group in optimizer.param_groups:
             group["initial_lr"] = group["lr"]
         return optimizer
 
-    def forward(self, idx, targets=None, kv_cache=None, loss_reduction='mean'):
+    def encode(self, idx, kv_cache=None):
+        """Causal compressor features, shared by GPT and the latent world model."""
         B, T = idx.size()
 
         # Grab the rotary embeddings for the current sequence length (they are of shape (1, seq_len, 1, head_dim/2))
@@ -475,7 +481,6 @@ class GPT(nn.Module):
         # Smear: mix previous token's embedding into current position (cheap bigram info)
         if kv_cache is None:
             # Training / naive generate: full sequence available, use fast slice
-            assert T > 1, "Training forward pass should have T > 1"
             gate = self.smear_lambda.to(x.dtype) * torch.sigmoid(self.smear_gate(x[:, 1:, :24]))
             x = torch.cat([x[:, :1], x[:, 1:] + gate * x[:, :-1]], dim=1)
         else:
@@ -507,6 +512,10 @@ class GPT(nn.Module):
             x = x - self.backout_lambda.to(x.dtype) * x_backout
         x = norm(x)
 
+        return x
+
+    def forward(self, idx, targets=None, kv_cache=None, loss_reduction='mean'):
+        x = self.encode(idx, kv_cache=kv_cache)
         # Forward the lm_head (compute logits)
         softcap = 15 # smoothly cap the logits to the range [-softcap, softcap]
         logits = self.lm_head(x) # (B, T, padded_vocab_size) <- very big tensor, large amount of memory
@@ -535,7 +544,7 @@ class GPT(nn.Module):
         device = self.get_device()
         rng = None
         if temperature > 0:
-            rng = torch.Generator(device=device)
+            rng = torch.Generator(device="cpu" if device.type == "xla" else device)
             rng.manual_seed(seed)
         ids = torch.tensor([tokens], dtype=torch.long, device=device) # add batch dim
         for _ in range(max_tokens):
@@ -547,7 +556,7 @@ class GPT(nn.Module):
             if temperature > 0:
                 logits = logits / temperature
                 probs = F.softmax(logits, dim=-1)
-                next_ids = torch.multinomial(probs, num_samples=1, generator=rng)
+                next_ids = torch.multinomial(probs.cpu() if probs.device.type == "xla" else probs, num_samples=1, generator=rng).to(probs.device)
             else:
                 next_ids = torch.argmax(logits, dim=-1, keepdim=True)
             ids = torch.cat((ids, next_ids), dim=1)

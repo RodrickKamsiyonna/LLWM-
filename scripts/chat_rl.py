@@ -33,7 +33,7 @@ parser = argparse.ArgumentParser(description="Reinforcement learning on GSM8K")
 # Logging
 parser.add_argument("--run", type=str, default="dummy", help="wandb run name ('dummy' disables wandb logging)")
 # Runtime
-parser.add_argument("--device-type", type=str, default="", help="cuda|cpu|mps (empty = autodetect)")
+parser.add_argument("--device-type", type=str, default="", help="cuda|cpu|mps|xla (empty = autodetect)")
 # Model loading
 parser.add_argument("--model-tag", type=str, default=None, help="model tag to load from")
 parser.add_argument("--model-step", type=int, default=None, help="model step to load from")
@@ -282,8 +282,10 @@ for step in range(num_steps):
     if ddp: # aggregate across ranks
         mean_reward_tensor = torch.tensor(mean_reward, dtype=torch.float, device=device)
         mean_sequence_length_tensor = torch.tensor(mean_sequence_length, dtype=torch.float, device=device)
-        dist.all_reduce(mean_reward_tensor, op=dist.ReduceOp.AVG)
-        dist.all_reduce(mean_sequence_length_tensor, op=dist.ReduceOp.AVG)
+        dist.all_reduce(mean_reward_tensor, op=dist.ReduceOp.SUM)
+        mean_reward_tensor.div_(ddp_world_size)
+        dist.all_reduce(mean_sequence_length_tensor, op=dist.ReduceOp.SUM)
+        mean_sequence_length_tensor.div_(ddp_world_size)
         mean_reward = mean_reward_tensor.item()
         mean_sequence_length = mean_sequence_length_tensor.item()
     print0(f"Step {step}/{num_steps} | Average reward: {mean_reward} | Average sequence length: {mean_sequence_length:.2f}")

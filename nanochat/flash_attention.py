@@ -79,6 +79,8 @@ def _sdpa_attention(q, k, v, window_size, enable_gqa):
     SDPA attention with sliding window support.
     q, k, v are (B, H, T, D) format.
     """
+    if q.device.type == "xla":
+        return _xla_attention(q, k, v, window_size)
     Tq = q.size(2)
     Tk = k.size(2)
     window = window_size[0]
@@ -193,3 +195,21 @@ flash_attn = SimpleNamespace(
     flash_attn_func=flash_attn_func,
     flash_attn_with_kvcache=flash_attn_with_kvcache,
 )
+
+
+def _xla_attention(q, k, v, window_size):
+    # Primitive ops lower through XLA without CUDA SDPA kernels. Explicit masks
+    # handle both grouped queries and right-aligned cached decoding.
+    if q.size(1) != k.size(1):
+        repeats = q.size(1) // k.size(1)
+        k = k.repeat_interleave(repeats, dim=1)
+        v = v.repeat_interleave(repeats, dim=1)
+    tq, tk = q.size(2), k.size(2)
+    rows = (tk - tq) + torch.arange(tq, device=q.device).unsqueeze(1)
+    cols = torch.arange(tk, device=q.device).unsqueeze(0)
+    mask = cols <= rows
+    if window_size[0] >= 0:
+        mask = mask & ((rows - cols) <= window_size[0])
+    scores = (q.float() @ k.float().transpose(-2, -1)) * (q.size(-1) ** -0.5)
+    probs = torch.softmax(scores.masked_fill(~mask, float("-inf")), dim=-1).to(v.dtype)
+    return probs @ v

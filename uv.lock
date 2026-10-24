@@ -1,37 +1,51 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.10"
 resolution-markers = [
-    "python_full_version >= '3.12' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu'",
-    "python_full_version >= '3.12' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu'",
-    "python_full_version == '3.11.*' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu'",
-    "python_full_version < '3.11' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu'",
-    "python_full_version == '3.11.*' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu'",
-    "python_full_version < '3.11' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu'",
-    "python_full_version >= '3.12' and sys_platform == 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version >= '3.12' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version == '3.11.*' and sys_platform == 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version < '3.11' and sys_platform == 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version == '3.11.*' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version < '3.11' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version >= '3.12' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version == '3.11.*' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version < '3.11' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version >= '3.12' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version >= '3.12' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version == '3.11.*' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version < '3.11' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version == '3.11.*' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version < '3.11' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version >= '3.12' and sys_platform == 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version >= '3.12' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version == '3.11.*' and sys_platform == 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version < '3.11' and sys_platform == 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version == '3.11.*' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version < '3.11' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version >= '3.12' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version == '3.11.*' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version < '3.11' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
     "python_full_version >= '3.12' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version >= '3.12' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version >= '3.12' and sys_platform != 'darwin' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
     "python_full_version == '3.11.*' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
     "python_full_version < '3.11' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version == '3.11.*' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version < '3.11' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version == '3.11.*' and sys_platform != 'darwin' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version < '3.11' and sys_platform != 'darwin' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version >= '3.12' and sys_platform == 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version == '3.11.*' and sys_platform == 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version < '3.11' and sys_platform == 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
 ]
 conflicts = [[
     { package = "nanochat", extra = "cpu" },
     { package = "nanochat", extra = "gpu" },
+], [
+    { package = "nanochat", extra = "cpu" },
+    { package = "nanochat", extra = "tpu" },
+], [
+    { package = "nanochat", extra = "gpu" },
+    { package = "nanochat", extra = "tpu" },
 ]]
 
-[options]
-exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
-exclude-newer-span = "P7D"
+[[package]]
+name = "absl-py"
+version = "2.5.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1f/1d/58e2b5a6e4d703ccb2a029943d665974cb3d5a4fb2b3e3675dd03a9df10e/absl_py-2.5.1.tar.gz", hash = "sha256:286e71c82c1a38e75bbcf185f9b37d0305ad7786535107cb49bf4df9ff2e1f95", size = 118387, upload-time = "2026-10-09T08:38:58.037Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b3/7d/01e62f59e4166af1be6238d9f2b7f3453630c51b8044b412d05b5606532a/absl_py-2.5.1-py3-none-any.whl", hash = "sha256:721200f2f0e9960f2ca9dc3a2a706b201f5f75d812c158f059cbbe29eeafbdb8", size = 137673, upload-time = "2026-10-09T08:38:56.629Z" },
+]
 
 [[package]]
 name = "annotated-types"
@@ -74,7 +88,7 @@ name = "cffi"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pycparser", marker = "implementation_name != 'PyPy' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
+    { name = "pycparser" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/eb/56/b1ba7935a17738ae8453301356628e8147c79dbb825bcbc73dc7401f9846/cffi-2.0.0.tar.gz", hash = "sha256:44d1b5909021139fe36001ae048dbdde8214afa20200eda0f64c068cac5d5529", size = 523588, upload-time = "2025-09-08T23:24:04.541Z" }
 wheels = [
@@ -220,7 +234,7 @@ name = "click"
 version = "8.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/60/6c/8ca2efa64cf75a977a0d7fac081354553ebe483345c734fb6b6515d96bbc/click-8.2.1.tar.gz", hash = "sha256:27c491cc05d968d271d5a1db13e3b5a184636d9d930f148c50b038f0d0646202", size = 286342, upload-time = "2025-05-20T23:19:49.832Z" }
 wheels = [
@@ -250,16 +264,17 @@ name = "contourpy"
 version = "1.3.2"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.11' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu'",
-    "python_full_version < '3.11' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu'",
-    "python_full_version < '3.11' and sys_platform == 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version < '3.11' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version < '3.11' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version < '3.11' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version < '3.11' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version < '3.11' and sys_platform == 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version < '3.11' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version < '3.11' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
     "python_full_version < '3.11' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version < '3.11' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version < '3.11' and sys_platform != 'darwin' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version < '3.11' and sys_platform == 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
 ]
 dependencies = [
-    { name = "numpy", marker = "python_full_version < '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
+    { name = "numpy" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/66/54/eb9bfc647b19f2009dd5c7f5ec51c4e6ca831725f1aea7a993034f483147/contourpy-1.3.2.tar.gz", hash = "sha256:b6945942715a034c671b7fc54f9588126b0b8bf23db2696e3ca8328f3ff0ab54", size = 13466130, upload-time = "2025-04-15T17:47:53.79Z" }
 wheels = [
@@ -326,23 +341,25 @@ name = "contourpy"
 version = "1.3.3"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version >= '3.12' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu'",
-    "python_full_version >= '3.12' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu'",
-    "python_full_version == '3.11.*' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu'",
-    "python_full_version == '3.11.*' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu'",
-    "python_full_version >= '3.12' and sys_platform == 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version >= '3.12' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version == '3.11.*' and sys_platform == 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version == '3.11.*' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version >= '3.12' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version == '3.11.*' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version >= '3.12' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version >= '3.12' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version == '3.11.*' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version == '3.11.*' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version >= '3.12' and sys_platform == 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version >= '3.12' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version == '3.11.*' and sys_platform == 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version == '3.11.*' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version >= '3.12' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version == '3.11.*' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
     "python_full_version >= '3.12' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version >= '3.12' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version >= '3.12' and sys_platform != 'darwin' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
     "python_full_version == '3.11.*' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version == '3.11.*' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version == '3.11.*' and sys_platform != 'darwin' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version >= '3.12' and sys_platform == 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version == '3.11.*' and sys_platform == 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
 ]
 dependencies = [
-    { name = "numpy", marker = "python_full_version >= '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
+    { name = "numpy" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/58/01/1253e6698a07380cd31a736d248a3f2a50a7c88779a1813da27503cadc2a/contourpy-1.3.3.tar.gz", hash = "sha256:083e12155b210502d0bca491432bb04d56dc3432f95a979b429f2848c3dbe880", size = 13466174, upload-time = "2025-07-26T12:03:12.549Z" }
 wheels = [
@@ -471,7 +488,7 @@ name = "exceptiongroup"
 version = "1.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions", marker = "python_full_version < '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/0b/9f/a65090624ecf468cdca03533906e7c69ed7588582240cfe7cc9e770b50eb/exceptiongroup-1.3.0.tar.gz", hash = "sha256:b241f5885f560bc56a59ee63ca4c6a8bfa46ae4ad651af316d4e81817bb9fd88", size = 29749, upload-time = "2025-05-10T17:42:51.123Z" }
 wheels = [
@@ -587,6 +604,77 @@ wheels = [
 ]
 
 [[package]]
+name = "grpcio"
+version = "1.84.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c0/3a/5c8e0eea2af3d30cb20d33ac325a98d9b799c069d63101ca4da20bcc776a/grpcio-1.84.1.tar.gz", hash = "sha256:446e7876b9b991fa124c1d414899fa7cf95f89a3e71237ea0161863dc0b2c09f", size = 13421202, upload-time = "2026-10-22T14:59:43.986Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4b/05/f05e999e5ddc319a52e70d15b765ffb597b959bfe276eddc246c6bd78c2d/grpcio-1.84.1-cp310-cp310-linux_armv7l.whl", hash = "sha256:68ff21d6cee6f38f7554cdd263e6db25c95a3efe20726350ab4de4a81808be9c", size = 6415481, upload-time = "2026-10-22T14:57:12.614Z" },
+    { url = "https://files.pythonhosted.org/packages/a0/2f/90cf10ac2754ac93604c92d7c9b21713774ad2a7e6ef2a52f04c9becf9c1/grpcio-1.84.1-cp310-cp310-macosx_11_0_universal2.whl", hash = "sha256:3c5b41ac9a337f5633d9474b9ae6b1b7f2f4e3eca024a3855536d6980e817d43", size = 12311108, upload-time = "2026-10-22T14:57:16.97Z" },
+    { url = "https://files.pythonhosted.org/packages/f6/6b/3743380ac98de1d7decd77550ae3982e5ecbb057423b91fc0d3190cafb73/grpcio-1.84.1-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:5842cc52e13a5cf0d1beced73e43276a41e22c0e8a8f9f7c606536efce187e5a", size = 6995603, upload-time = "2026-10-22T14:57:19.511Z" },
+    { url = "https://files.pythonhosted.org/packages/94/6b/d98111f24cc7806eac591e9031e733ad7ae65627993a3d3b9d27a6d8d1bb/grpcio-1.84.1-cp310-cp310-manylinux2014_i686.manylinux_2_17_i686.whl", hash = "sha256:3bb28f8c1911de119135adbabb21b6e6563e7a5c9fc950c6b8ab2a387afb4372", size = 7746983, upload-time = "2026-10-22T14:57:22.066Z" },
+    { url = "https://files.pythonhosted.org/packages/cd/be/d2cb6ab9b4552426127fde93acc9197c89e6f46b646134298087e40b9401/grpcio-1.84.1-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:4aaf596ea35c7d022a3bfe0402cdee30d86c6ccea2b6fbbe03d1e4826cc7179c", size = 7151717, upload-time = "2026-10-22T14:57:24.28Z" },
+    { url = "https://files.pythonhosted.org/packages/ed/aa/98dea9d63129a3071240cb98980429cd3d732d47e948478216bd914b5666/grpcio-1.84.1-cp310-cp310-musllinux_1_2_aarch64.whl", hash = "sha256:c36f794a507bbda13e1b656e4fba775a08f3ca0a1e1be5f65ed47ceb0db47812", size = 7696631, upload-time = "2026-10-22T14:57:26.845Z" },
+    { url = "https://files.pythonhosted.org/packages/4d/51/a5829f905a311c8b8a877132adda95104cbe6487dce4efffbc513e48ba01/grpcio-1.84.1-cp310-cp310-musllinux_1_2_i686.whl", hash = "sha256:0b3d2b21939a6a773d1a692a1ac8564ec31702b752b38b913eb5b1bcfc280d55", size = 8755877, upload-time = "2026-10-22T14:57:29.353Z" },
+    { url = "https://files.pythonhosted.org/packages/cc/3b/30c6cf1693321278055386761bce00b32ac24fe892691197023a31f7a7ca/grpcio-1.84.1-cp310-cp310-musllinux_1_2_x86_64.whl", hash = "sha256:f6d12757eea5b6b642a171e7701ecfb360ce0bf13d262dad1bfdebcd267bcaf5", size = 8103508, upload-time = "2026-10-22T14:57:32.08Z" },
+    { url = "https://files.pythonhosted.org/packages/3d/59/ae59ed6d2d76a189a12c2c68d08d2fa2aa20797b94c6b30ae9a0b4c3b13b/grpcio-1.84.1-cp310-cp310-win32.whl", hash = "sha256:a37234085137ba26aa89bb377bba839894616eb1ed3873e1cc4a1badce885880", size = 4461581, upload-time = "2026-10-22T14:57:34.407Z" },
+    { url = "https://files.pythonhosted.org/packages/16/2d/87ae3e5a5075e7f2a33773cf0958a57351989f7cf98a9b2f6eb9fa6d4dce/grpcio-1.84.1-cp310-cp310-win_amd64.whl", hash = "sha256:d82bfc0cc4e9120a52f7657caa6af1727a79093612bd7e91a8444a29e4df21de", size = 5223494, upload-time = "2026-10-22T14:57:36.928Z" },
+    { url = "https://files.pythonhosted.org/packages/b6/99/8c0a3739dbc75bf509cf2a79a35ebb27e73cd7a1f9be25af842ae66e4749/grpcio-1.84.1-cp311-cp311-linux_armv7l.whl", hash = "sha256:a5ea4e8d1e9745ba6c2c9d14ed0861e9496a8051bf9fd8a17b667d9b9a0c1019", size = 6420007, upload-time = "2026-10-22T14:57:39.037Z" },
+    { url = "https://files.pythonhosted.org/packages/a3/00/c8261b1d56715d09c922145d12427abc1b1be5afad031336d7b00bad7d8c/grpcio-1.84.1-cp311-cp311-macosx_11_0_universal2.whl", hash = "sha256:11c1d07c58922f5dad022b422d3f7998755c3e35e2f1949bac47cfd7a5eb31fd", size = 12325248, upload-time = "2026-10-22T14:57:41.384Z" },
+    { url = "https://files.pythonhosted.org/packages/f0/4a/30f23e49f1b8ab11ccd24cfa146524df5478f45db7167006580cdfeaa321/grpcio-1.84.1-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:6a22342e59b5b2f4c5ed276ef72a3668ec84f38d2f5fad8a64af0b3618e510eb", size = 6995366, upload-time = "2026-10-22T14:57:44.399Z" },
+    { url = "https://files.pythonhosted.org/packages/c1/d8/fd238758e4725f11d509c440de1b03a77c53d5f213fd45ccfb5f4f775aff/grpcio-1.84.1-cp311-cp311-manylinux2014_i686.manylinux_2_17_i686.whl", hash = "sha256:bdd1181edaf42b6e79a457789fd43e85858db1df3861e4e5128ff4d6a49cb638", size = 7747707, upload-time = "2026-10-22T14:57:47.241Z" },
+    { url = "https://files.pythonhosted.org/packages/47/54/d6544884ef836bea968d3ed7abf179c4d33a794dd8a8b1c5cf002fff9620/grpcio-1.84.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:eb881326607275ad2d2d17dce09b823472414dcc559e8f694d5607fe8af3cbc1", size = 7153395, upload-time = "2026-10-22T14:57:50.28Z" },
+    { url = "https://files.pythonhosted.org/packages/06/9c/094cd0afd21348e65d5750a7fa4cfa5f8ba6ca354fe6aff9f1163f4c5d0e/grpcio-1.84.1-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:772ff116d0d31b2817e23fb9a1dfa52fa9fed08be0cd87b593450f034e2968b1", size = 7702992, upload-time = "2026-10-22T14:57:53.602Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/54/254432337e14beb08bc7f29fc10a86ef149f672124073f2e0d446dbf8538/grpcio-1.84.1-cp311-cp311-musllinux_1_2_i686.whl", hash = "sha256:0225c1e29d1506594e75ac46fd7b327bbfd24c6306a3c479b2164c1c4e87901f", size = 8758120, upload-time = "2026-10-22T14:57:55.728Z" },
+    { url = "https://files.pythonhosted.org/packages/04/29/528ccb437076233d524e09e59320625b8ca9d94f0fb0198703e7100f3bff/grpcio-1.84.1-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:a1ce9e360d0a4a329b925ae8b0bc49d97d663bcce50822eb862873798a86eb10", size = 8110925, upload-time = "2026-10-22T14:57:58.639Z" },
+    { url = "https://files.pythonhosted.org/packages/24/5a/e4005d02dd65884a525f49ba0aa0371967b7fb40f00d35818ab397d91a93/grpcio-1.84.1-cp311-cp311-win32.whl", hash = "sha256:b87f8696bb78a31328e815629d320304c3d5cca1c654d3fd7e5518685bcfb8d2", size = 4460566, upload-time = "2026-10-22T14:58:01.077Z" },
+    { url = "https://files.pythonhosted.org/packages/6e/fc/fc040230b60529a5df349945eb1e4f8a201607a6e3d70f3465d80e801393/grpcio-1.84.1-cp311-cp311-win_amd64.whl", hash = "sha256:e44786d5c166944a53fb1fa3384d03f1dbade6f68007be6d0c5a1a0971cbaca6", size = 5225017, upload-time = "2026-10-22T14:58:03.113Z" },
+    { url = "https://files.pythonhosted.org/packages/69/39/34a3e64818b1fdaf73b6c873f7d085969f20c2aff114c8909cc7ee0cb2b4/grpcio-1.84.1-cp312-cp312-linux_armv7l.whl", hash = "sha256:db2dbe5380dccc2f5df967f31308a744e65d46e21b473a9c3ca033c4299ec3f4", size = 6381194, upload-time = "2026-10-22T14:58:05.289Z" },
+    { url = "https://files.pythonhosted.org/packages/77/bf/5f1922cafaaaa7b2b6a0f6b0614783efa8502f16c8dd9c7b8b131a3dc9d2/grpcio-1.84.1-cp312-cp312-macosx_11_0_universal2.whl", hash = "sha256:f7533921b52ef94210437dedd3911e00b7642ca8d11eda64eb1715778630715e", size = 12304970, upload-time = "2026-10-22T14:58:07.714Z" },
+    { url = "https://files.pythonhosted.org/packages/af/f9/77e9991fd5ae7d754b78b3c8e8eb028ddc886a480b86b934ece85f727f95/grpcio-1.84.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:e0dcc7b588e7b7dd3363317296983db23a26af8baa5884db15a10fc0c8534186", size = 6949905, upload-time = "2026-10-22T14:58:10.92Z" },
+    { url = "https://files.pythonhosted.org/packages/a7/a2/af693a3bd3fb43cd97e4ad054ad5b117814c1a24cad048130e982a189f0f/grpcio-1.84.1-cp312-cp312-manylinux2014_i686.manylinux_2_17_i686.whl", hash = "sha256:a92bb13dd1b31a16f631ab415710de59f404c37364c018e7486496fb449a89da", size = 7714870, upload-time = "2026-10-22T14:58:13.622Z" },
+    { url = "https://files.pythonhosted.org/packages/00/98/456ef643a796ba04ad737e39a820c27291c238db87f7d168355dbdaf7b4b/grpcio-1.84.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:474408c92b27c823ea6aab2315e2ea52d5a4e0040b37ce1e65e89d9149c48205", size = 7121552, upload-time = "2026-10-22T14:58:16.454Z" },
+    { url = "https://files.pythonhosted.org/packages/a9/bc/c98f29a74b772ba9025f13243dc9547807583b1d111282bdcc53bb4f8db6/grpcio-1.84.1-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:912694cac76adb4f45563b38ae4d06d77a2081e8ed5cb20a3918c1affba83c63", size = 7673450, upload-time = "2026-10-22T14:58:19.009Z" },
+    { url = "https://files.pythonhosted.org/packages/2e/2f/713bbfaf1cd7ce3a4626b8c0e93ec3f7493d8f52ccdb1ddb02fc98fc7d7e/grpcio-1.84.1-cp312-cp312-musllinux_1_2_i686.whl", hash = "sha256:f821954e4d89e97f7d51c03073d6964e177f2d11181550a5a22c082fac614f43", size = 8725415, upload-time = "2026-10-22T14:58:22.23Z" },
+    { url = "https://files.pythonhosted.org/packages/b3/ef/21db8160edde5646a0f688c9f7e97bf6106965e4e2ae1dcfe9649fe2db01/grpcio-1.84.1-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:02612f3c19ed3dd885e2fff1236bf5629e5b43b5aa84c3290b0d5f62f26b0ef7", size = 8090355, upload-time = "2026-10-22T14:58:25.039Z" },
+    { url = "https://files.pythonhosted.org/packages/34/0e/a762461094659b13a86a027461a6acdf4734dbbe17b19bb193191801b570/grpcio-1.84.1-cp312-cp312-win32.whl", hash = "sha256:380b58bf32707b4e3019c9567dab30375bd21f9a5c98aa24401aff1e73f3b262", size = 4444024, upload-time = "2026-10-22T14:58:27.015Z" },
+    { url = "https://files.pythonhosted.org/packages/51/b5/2dbcb95b7b3622253bbb09b79dd87787dd05709303e571cc0eb150f860d1/grpcio-1.84.1-cp312-cp312-win_amd64.whl", hash = "sha256:1a221fe42e444cd0099752028810a289efafce1b5690dfe19a831d2a2fe6ea62", size = 5218662, upload-time = "2026-10-22T14:58:29.124Z" },
+    { url = "https://files.pythonhosted.org/packages/0d/57/f25d35af33566daec7c9eec09c65e06f510cea2cc392bc2988af26250a4e/grpcio-1.84.1-cp313-cp313-linux_armv7l.whl", hash = "sha256:9c24b1ebbdf867b33d74868044fed5c7c5a6a6e00787140b5f582572f7a7e633", size = 6393057, upload-time = "2026-10-22T14:58:31.938Z" },
+    { url = "https://files.pythonhosted.org/packages/1f/d5/68c3c5804bc7b05a0a544ac68439ff7eb493d5d394e5361bc94e60b6be0b/grpcio-1.84.1-cp313-cp313-macosx_11_0_universal2.whl", hash = "sha256:af0f0c10281c2b62c68868e0a98de24f89c31308c68dbf19320d30c3a329aba5", size = 12302330, upload-time = "2026-10-22T14:58:34.375Z" },
+    { url = "https://files.pythonhosted.org/packages/ce/8f/d25a5d4d4f34e99ec31869ad3b988893f15d5965625cfc35a5faffb9889f/grpcio-1.84.1-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:c1c04d2876ccb063507a976602bc88b5c31330982e650c620bf8e730b120c9d5", size = 6954893, upload-time = "2026-10-22T14:58:37.408Z" },
+    { url = "https://files.pythonhosted.org/packages/88/f8/fae50f0e28281be328614ad772118290d0f804d9be5be2d5708e7ea8d9aa/grpcio-1.84.1-cp313-cp313-manylinux2014_i686.manylinux_2_17_i686.whl", hash = "sha256:3cf14e9cf02d12628f20ec205d699838c47e2d3741690fbf14ae626bfa32ac0b", size = 7723209, upload-time = "2026-10-22T14:58:39.537Z" },
+    { url = "https://files.pythonhosted.org/packages/59/4d/99dfd9cfab7f748d52cfb9177e8967d5cec0a50f148d4e3b9a0bf0b1220c/grpcio-1.84.1-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:2ce575e400e0dec9484f5d038fa12d6b3919d493c2beb897a23b9a32fa3bfd12", size = 7125010, upload-time = "2026-10-22T14:58:42.037Z" },
+    { url = "https://files.pythonhosted.org/packages/0e/cc/7354ebd3d4c1bef08b062b9f07d154141c2b9043f677a219bc7943070867/grpcio-1.84.1-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:c6e9be93efe763bb2b12a4c0d5fc13082f24de6cbb53a9d11078c9d0c8cdb2b8", size = 7675985, upload-time = "2026-10-22T14:58:44.564Z" },
+    { url = "https://files.pythonhosted.org/packages/9b/67/37ccd26e1f7a7576f53627b45e222ac89ea3465b3f02836f480ac26e4dce/grpcio-1.84.1-cp313-cp313-musllinux_1_2_i686.whl", hash = "sha256:f216832aa84ad7e697ae1ed993c33905d27e27cd1b02016af1441be2091e287d", size = 8726955, upload-time = "2026-10-22T14:58:47.051Z" },
+    { url = "https://files.pythonhosted.org/packages/88/cf/4887c033734182cecd12d3a1f6f9e7f84e9a5589a1ca2f564ff2ce8f2a29/grpcio-1.84.1-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:6a4a06d757e7ea5ddf636a4c40914aa36fb4f7e2a03abf727a16e61822331343", size = 8086854, upload-time = "2026-10-22T14:58:49.831Z" },
+    { url = "https://files.pythonhosted.org/packages/d0/2c/34aca5188055d8e5342a5a672f6d321f331c8e1e944ea7d3650ee71f4943/grpcio-1.84.1-cp313-cp313-win32.whl", hash = "sha256:4052f86fdb5105ac8b02c77d17cd9beff78790a0c3117afdd5316154cf4348a5", size = 4443070, upload-time = "2026-10-22T14:58:51.851Z" },
+    { url = "https://files.pythonhosted.org/packages/68/25/5c315847ab3bd6d3b9f3caad178596eb1affd5aafd02374813b27bddf708/grpcio-1.84.1-cp313-cp313-win_amd64.whl", hash = "sha256:b7452ccc592e40e4167adec46195d85387c8036f0aadf6f96ab6ed931205d0ce", size = 5220505, upload-time = "2026-10-22T14:58:54.464Z" },
+    { url = "https://files.pythonhosted.org/packages/4c/d8/bbc616bd123ddc2fd1f53f49e40cf537f7dd9c483f47bb21be61c4aa0ae1/grpcio-1.84.1-cp314-cp314-linux_armv7l.whl", hash = "sha256:42ffbbc11fe2e4b02a4b51b090f8ca6727414748cf551539665b5592372263e8", size = 6393649, upload-time = "2026-10-22T14:58:56.534Z" },
+    { url = "https://files.pythonhosted.org/packages/80/25/71e0903ca23c483aad588daa7744f9b01c149db9cbfa13eb24ef5f813a2e/grpcio-1.84.1-cp314-cp314-macosx_11_0_universal2.whl", hash = "sha256:f2482ebe5e3a9c6d1f99859e135cc0ca370362e3b2a94cb6304f64943997bfcb", size = 12308221, upload-time = "2026-10-22T14:58:58.92Z" },
+    { url = "https://files.pythonhosted.org/packages/28/01/a0207b967ab991bc009030763e3c7e6280cbeda1de06351e16034d34547e/grpcio-1.84.1-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:b8fb04fe0ded6fb1c5edd4c90ed39193d7b6226214685111b25a153ccb33a52a", size = 6963837, upload-time = "2026-10-22T14:59:01.562Z" },
+    { url = "https://files.pythonhosted.org/packages/38/74/a4171ad8c4b0e80371afb27503cad580d4cae2f116b56adbb9dafa7e3c76/grpcio-1.84.1-cp314-cp314-manylinux2014_i686.manylinux_2_17_i686.whl", hash = "sha256:ffc0be893d8df55f0d23afbd3b776ede444847260a4a00ac80326a32dac91ad3", size = 7722977, upload-time = "2026-10-22T14:59:03.784Z" },
+    { url = "https://files.pythonhosted.org/packages/4e/b8/73e85d67437fa4324933cc625a6a8e8e5f22fbdfe6757d949a6958b87479/grpcio-1.84.1-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:ccd8be89a73d276336cbf223b22bd5c677d9fd15233100f208845c6a0c7cbc72", size = 7126919, upload-time = "2026-10-22T14:59:05.982Z" },
+    { url = "https://files.pythonhosted.org/packages/03/60/734b781ca01f562e6e01c84ef8e762f1ebcfccd02b29be0b77513fc26da0/grpcio-1.84.1-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:ced0c5ef2709964aca16e6af6f74f682b57872d2f7c7c553916c6b86dac64fa4", size = 7685628, upload-time = "2026-10-22T14:59:08.495Z" },
+    { url = "https://files.pythonhosted.org/packages/5a/c8/03051aa012430b2dbd15fbf9af42482d945197b7886c77c557475d1bb4bb/grpcio-1.84.1-cp314-cp314-musllinux_1_2_i686.whl", hash = "sha256:28caf3df58096e2cb06f0f7e672160e65e9df5e053f392594d93d33a15fe1ef1", size = 8728232, upload-time = "2026-10-22T14:59:10.709Z" },
+    { url = "https://files.pythonhosted.org/packages/58/83/c87911b98ed766d7084d64053dc06f7855267f686b673dc0bb1ac8c07aee/grpcio-1.84.1-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:f4b64099afaccdeeb987240af47aa1fc14f57285d3d2ff000c7327228624999a", size = 8088730, upload-time = "2026-10-22T14:59:13.431Z" },
+    { url = "https://files.pythonhosted.org/packages/88/bf/6b18690790c0c4d7062749785bc8e515881a8a4058f46cb2925c86adc9e0/grpcio-1.84.1-cp314-cp314-win32.whl", hash = "sha256:116b4796da0e7fca3fdf6edf422ea7521c25d8c4be64ab7e3b5e2a77c832b0ed", size = 4527749, upload-time = "2026-10-22T14:59:15.712Z" },
+    { url = "https://files.pythonhosted.org/packages/b8/d9/ee50fe67481254c45c9b709b31ba468e4c90925018f4507c424369a9abd5/grpcio-1.84.1-cp314-cp314-win_amd64.whl", hash = "sha256:3875f4c4caf0c54ac370b66322f0bf2d46e9d21414be36ea8b7f618badb3b87c", size = 5359432, upload-time = "2026-10-22T14:59:18.331Z" },
+    { url = "https://files.pythonhosted.org/packages/c4/c0/fc3341990f75cba2096d07ea5e7a8f78af8cb36f6b1fd78660b8c1220e11/grpcio-1.84.1-cp315-cp315-linux_armv7l.whl", hash = "sha256:775f98cb476625936061b91e3c1da229112b212a6b2a70fefc9c87e5aaf9fba6", size = 6393689, upload-time = "2026-10-22T14:59:20.402Z" },
+    { url = "https://files.pythonhosted.org/packages/c9/f4/6b9a70760bbd8e927f31452ed2ba33cc3dc1a327f1b46c44f65ddb6dbf0a/grpcio-1.84.1-cp315-cp315-macosx_10_15_universal2.whl", hash = "sha256:cfdc7530e5707ab6e5c80fc624f89e26ddf8f38d3e89e5226dd7e55c080e9b65", size = 12325454, upload-time = "2026-10-22T14:59:22.805Z" },
+    { url = "https://files.pythonhosted.org/packages/ea/87/e44f1c73d4c003a10a8c9b348b44296e99ec5623b70fb441ad250f4b532b/grpcio-1.84.1-cp315-cp315-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:c61a0d5c60506b2371444716b56d6c633d3c56a17c703566bcca39604c02c12c", size = 6984778, upload-time = "2026-10-22T14:59:25.385Z" },
+    { url = "https://files.pythonhosted.org/packages/19/9f/efd7828266b9e5ff0764af8420d52add5acfc13382d073596f15d7dfc183/grpcio-1.84.1-cp315-cp315-manylinux2014_i686.manylinux_2_17_i686.whl", hash = "sha256:79b3ee4683290b3cfabadc718a008c3474073b585bc450231a842c21c2ef1f27", size = 7073415, upload-time = "2026-10-22T14:59:27.503Z" },
+    { url = "https://files.pythonhosted.org/packages/80/5e/de257fc887b5a4e955173fb28a76a39fdb69f12e0d99987ed723c937c419/grpcio-1.84.1-cp315-cp315-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:c8ae49802f09cc272546592b3656207de6f719e50a6a0d1654e613aaba6336ac", size = 7165478, upload-time = "2026-10-22T14:59:30.083Z" },
+    { url = "https://files.pythonhosted.org/packages/75/b0/66840129d46b06a5159277206a1f706ff755d725fdd0652e7acf6961a930/grpcio-1.84.1-cp315-cp315-musllinux_1_2_aarch64.whl", hash = "sha256:1e25f45414b3a53bfc1fe43b980f9d0cae9e194a62541d5f6bef0846758162ac", size = 7707719, upload-time = "2026-10-22T14:59:32.284Z" },
+    { url = "https://files.pythonhosted.org/packages/10/0d/92682af96b05c1d5e5ce1ea82a3969b221c9d58112a097ff637946e395c6/grpcio-1.84.1-cp315-cp315-musllinux_1_2_i686.whl", hash = "sha256:de3c31abc0d052511744a817506e03534f14e32dadab8ec19f63f2d4facd05f3", size = 8079074, upload-time = "2026-10-22T14:59:34.507Z" },
+    { url = "https://files.pythonhosted.org/packages/0c/69/1e426aa52c23640430eed1728c0f7c1167bb64eb7b0a31bb5ce9a500f73c/grpcio-1.84.1-cp315-cp315-musllinux_1_2_x86_64.whl", hash = "sha256:6ce0835704f30d4954aa0a68352fc9cc30242cc85f39d7b6cd20c0790e05925b", size = 8118408, upload-time = "2026-10-22T14:59:37.082Z" },
+    { url = "https://files.pythonhosted.org/packages/72/66/037c29a3668a32f2dbd287ceac43286797ffe14c95e7234db75c42ea10dc/grpcio-1.84.1-cp315-cp315-win32.whl", hash = "sha256:43d8b84b3e2b7505e4902ab6288ceee699cfec5435ed879bb53f876b2966ee33", size = 4527284, upload-time = "2026-10-22T14:59:39.362Z" },
+    { url = "https://files.pythonhosted.org/packages/c3/87/4dea740311428c40fa0da674e0ecfa28f572809cba4cbc9c568918c82d2e/grpcio-1.84.1-cp315-cp315-win_amd64.whl", hash = "sha256:c8e1c15e81f65efb317906754fdba4a85d2eac9cff250d8a3fb3ccb3a4e52db9", size = 5360072, upload-time = "2026-10-22T14:59:41.328Z" },
+]
+
+[[package]]
 name = "hf-xet"
 version = "1.1.9"
 source = { registry = "https://pypi.org/simple" }
@@ -608,7 +696,7 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "filelock" },
     { name = "fsspec" },
-    { name = "hf-xet", marker = "platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
+    { name = "hf-xet", marker = "platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64'" },
     { name = "packaging" },
     { name = "pyyaml" },
     { name = "requests" },
@@ -630,6 +718,15 @@ wheels = [
 ]
 
 [[package]]
+name = "immutabledict"
+version = "4.3.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1d/e6/718471048fea0366c3e3d1df3acfd914ca66d571cdffcf6d37bbcd725708/immutabledict-4.3.1.tar.gz", hash = "sha256:f844a669106cfdc73f47b1a9da003782fb17dc955a54c80972e0d93d1c63c514", size = 7806, upload-time = "2026-02-15T10:32:34.668Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a3/ce/f9018bf69ae91b273b6391a095e7c93fa5e1617f25b6ba81ad4b20c9df10/immutabledict-4.3.1-py3-none-any.whl", hash = "sha256:c9facdc0ff30fdb8e35bd16532026cac472a549e182c94fa201b51b25e4bf7bf", size = 5000, upload-time = "2026-02-15T10:32:33.672Z" },
+]
+
+[[package]]
 name = "iniconfig"
 version = "2.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -643,11 +740,11 @@ name = "ipykernel"
 version = "7.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "appnope", marker = "sys_platform == 'darwin' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
+    { name = "appnope", marker = "sys_platform == 'darwin'" },
     { name = "comm" },
     { name = "debugpy" },
-    { name = "ipython", version = "8.37.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "ipython", version = "9.8.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
+    { name = "ipython", version = "8.37.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "ipython", version = "9.8.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "jupyter-client" },
     { name = "jupyter-core" },
     { name = "matplotlib-inline" },
@@ -668,26 +765,27 @@ name = "ipython"
 version = "8.37.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.11' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu'",
-    "python_full_version < '3.11' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu'",
-    "python_full_version < '3.11' and sys_platform == 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version < '3.11' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version < '3.11' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version < '3.11' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version < '3.11' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version < '3.11' and sys_platform == 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version < '3.11' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version < '3.11' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
     "python_full_version < '3.11' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version < '3.11' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version < '3.11' and sys_platform != 'darwin' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version < '3.11' and sys_platform == 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
 ]
 dependencies = [
-    { name = "colorama", marker = "(python_full_version < '3.11' and sys_platform == 'win32') or (python_full_version >= '3.11' and extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (sys_platform != 'win32' and extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "decorator", marker = "python_full_version < '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "exceptiongroup", marker = "python_full_version < '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "jedi", marker = "python_full_version < '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "matplotlib-inline", marker = "python_full_version < '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "pexpect", marker = "(python_full_version < '3.11' and sys_platform != 'emscripten' and sys_platform != 'win32') or (python_full_version >= '3.11' and extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (sys_platform == 'emscripten' and extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (sys_platform == 'win32' and extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "prompt-toolkit", marker = "python_full_version < '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "pygments", marker = "python_full_version < '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "stack-data", marker = "python_full_version < '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "traitlets", marker = "python_full_version < '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "typing-extensions", marker = "python_full_version < '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+    { name = "decorator" },
+    { name = "exceptiongroup" },
+    { name = "jedi" },
+    { name = "matplotlib-inline" },
+    { name = "pexpect", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "prompt-toolkit" },
+    { name = "pygments" },
+    { name = "stack-data" },
+    { name = "traitlets" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/85/31/10ac88f3357fc276dc8a64e8880c82e80e7459326ae1d0a211b40abf6665/ipython-8.37.0.tar.gz", hash = "sha256:ca815841e1a41a1e6b73a0b08f3038af9b2252564d01fc405356d34033012216", size = 5606088, upload-time = "2025-05-31T16:39:09.613Z" }
 wheels = [
@@ -699,33 +797,35 @@ name = "ipython"
 version = "9.8.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version >= '3.12' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu'",
-    "python_full_version >= '3.12' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu'",
-    "python_full_version == '3.11.*' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu'",
-    "python_full_version == '3.11.*' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu'",
-    "python_full_version >= '3.12' and sys_platform == 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version >= '3.12' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version == '3.11.*' and sys_platform == 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version == '3.11.*' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version >= '3.12' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version == '3.11.*' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version >= '3.12' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version >= '3.12' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version == '3.11.*' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version == '3.11.*' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version >= '3.12' and sys_platform == 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version >= '3.12' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version == '3.11.*' and sys_platform == 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version == '3.11.*' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version >= '3.12' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version == '3.11.*' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
     "python_full_version >= '3.12' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version >= '3.12' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version >= '3.12' and sys_platform != 'darwin' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
     "python_full_version == '3.11.*' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version == '3.11.*' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version == '3.11.*' and sys_platform != 'darwin' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version >= '3.12' and sys_platform == 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version == '3.11.*' and sys_platform == 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
 ]
 dependencies = [
-    { name = "colorama", marker = "(python_full_version >= '3.11' and sys_platform == 'win32') or (python_full_version < '3.11' and extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (sys_platform != 'win32' and extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "decorator", marker = "python_full_version >= '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "ipython-pygments-lexers", marker = "python_full_version >= '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "jedi", marker = "python_full_version >= '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "matplotlib-inline", marker = "python_full_version >= '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "pexpect", marker = "(python_full_version >= '3.11' and sys_platform != 'emscripten' and sys_platform != 'win32') or (python_full_version < '3.11' and extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (sys_platform == 'emscripten' and extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (sys_platform == 'win32' and extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "prompt-toolkit", marker = "python_full_version >= '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "pygments", marker = "python_full_version >= '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "stack-data", marker = "python_full_version >= '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "traitlets", marker = "python_full_version >= '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "typing-extensions", marker = "python_full_version == '3.11.*' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+    { name = "decorator" },
+    { name = "ipython-pygments-lexers" },
+    { name = "jedi" },
+    { name = "matplotlib-inline" },
+    { name = "pexpect", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "prompt-toolkit" },
+    { name = "pygments" },
+    { name = "stack-data" },
+    { name = "traitlets" },
+    { name = "typing-extensions", marker = "python_full_version < '3.12'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/12/51/a703c030f4928646d390b4971af4938a1b10c9dfce694f0d99a0bb073cb2/ipython-9.8.0.tar.gz", hash = "sha256:8e4ce129a627eb9dd221c41b1d2cdaed4ef7c9da8c17c63f6f578fe231141f83", size = 4424940, upload-time = "2025-12-03T10:18:24.353Z" }
 wheels = [
@@ -737,7 +837,7 @@ name = "ipython-pygments-lexers"
 version = "1.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pygments", marker = "python_full_version >= '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
+    { name = "pygments" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ef/4c/5dd1d8af08107f88c7f741ead7a40854b8ac24ddf9ae850afbcf698aa552/ipython_pygments_lexers-1.1.1.tar.gz", hash = "sha256:09c0138009e56b6854f9535736f4171d855c8c08a563a0dcd8022f78355c7e81", size = 8393, upload-time = "2025-01-17T11:24:34.505Z" }
 wheels = [
@@ -805,7 +905,7 @@ dependencies = [
     { name = "huggingface-hub" },
     { name = "packaging" },
     { name = "pyyaml" },
-    { name = "tomli", marker = "python_full_version < '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/d6/c8/2d4fea16366d34069af6d4c4f61218f55e5d0daea5d4c24d58849e9fd626/kernels-0.11.7.tar.gz", hash = "sha256:99c3aa518965518902f4dc26053d6051f06abc904ae33d9486c28674a2ea0fa5", size = 50282, upload-time = "2026-01-08T15:41:57.383Z" }
 wheels = [
@@ -921,6 +1021,28 @@ wheels = [
 ]
 
 [[package]]
+name = "libtpu"
+version = "0.0.21"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/82/97/dc9de2840d51f3b288e7d06c0adf6d2dfe565854c7b6ad23b2c5921705b1/libtpu-0.0.21-cp310-cp310-manylinux_2_31_x86_64.whl", hash = "sha256:3e1cb269d83a2c0a6f54a6831a6abfa43b4d13246f555ed7f9204ed62a491254", size = 149754184, upload-time = "2025-08-15T18:47:15.074Z" },
+    { url = "https://files.pythonhosted.org/packages/a6/92/b6d7444cebacd265e2006cb38790081a4ad1ea3d4c9686f4713fa77f21cf/libtpu-0.0.21-cp311-cp311-manylinux_2_31_x86_64.whl", hash = "sha256:048305597c92ca31f805a62d402c101019b286250b939ef96c24e9d110cdf80a", size = 149753699, upload-time = "2025-08-15T18:47:23.871Z" },
+    { url = "https://files.pythonhosted.org/packages/5c/b9/6c9bd8aca50d01d6d919ff8bec2d93ca1276dbdb999ef5ad21a0efc2f661/libtpu-0.0.21-cp312-cp312-manylinux_2_31_x86_64.whl", hash = "sha256:0a5aaf71f45f8d72f1298b175d076ac2ae806ce7ab4b7d81c02315bd3adc5021", size = 149753420, upload-time = "2025-08-15T18:47:33.213Z" },
+]
+
+[[package]]
+name = "markdown-it-py"
+version = "4.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "mdurl" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/06/ff/7841249c247aa650a76b9ee4bbaeae59370dc8bfd2f6c01f3630c35eb134/markdown_it_py-4.2.0.tar.gz", hash = "sha256:04a21681d6fbb623de53f6f364d352309d4094dd4194040a10fd51833e418d49", size = 82454, upload-time = "2026-05-07T12:08:28.36Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b3/81/4da04ced5a082363ecfa159c010d200ecbd959ae410c10c0264a38cac0f5/markdown_it_py-4.2.0-py3-none-any.whl", hash = "sha256:9f7ebbcd14fe59494226453aed97c1070d83f8d24b6fc3a3bcf9a38092641c4a", size = 91687, upload-time = "2026-05-07T12:08:27.182Z" },
+]
+
+[[package]]
 name = "markupsafe"
 version = "3.0.2"
 source = { registry = "https://pypi.org/simple" }
@@ -983,8 +1105,8 @@ name = "matplotlib"
 version = "3.10.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "contourpy", version = "1.3.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "contourpy", version = "1.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
+    { name = "contourpy", version = "1.3.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "contourpy", version = "1.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "cycler" },
     { name = "fonttools" },
     { name = "kiwisolver" },
@@ -1065,6 +1187,15 @@ wheels = [
 ]
 
 [[package]]
+name = "mdurl"
+version = "0.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba", size = 8729, upload-time = "2022-08-14T12:40:10.846Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8", size = 9979, upload-time = "2022-08-14T12:40:09.779Z" },
+]
+
+[[package]]
 name = "mpmath"
 version = "1.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1077,6 +1208,7 @@ wheels = [
 name = "nanochat"
 version = "0.1.0"
 source = { virtual = "." }
+default-groups = []
 dependencies = [
     { name = "filelock" },
     { name = "kernels" },
@@ -1085,21 +1217,27 @@ dependencies = [
     { name = "pyarrow" },
     { name = "rustbpe" },
     { name = "tiktoken" },
-    { name = "torch", version = "2.9.1", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "torch", version = "2.9.1", source = { registry = "https://pypi.org/simple" }, marker = "(extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu')" },
-    { name = "torch", version = "2.9.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "torch", version = "2.9.1+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-8-nanochat-gpu'" },
+    { name = "torch", version = "2.9.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "torch", version = "2.9.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "torch", version = "2.9.1", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "torch", version = "2.9.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "torch", version = "2.9.1+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "extra == 'extra-8-nanochat-gpu' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu')" },
     { name = "wandb" },
 ]
 
 [package.optional-dependencies]
 cpu = [
     { name = "setuptools" },
-    { name = "torch", version = "2.9.1", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "torch", version = "2.9.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
+    { name = "torch", version = "2.9.1", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "torch", version = "2.9.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
 ]
 gpu = [
     { name = "torch", version = "2.9.1+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" } },
+]
+tpu = [
+    { name = "torch", version = "2.9.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "torch", version = "2.9.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "torch-xla", extra = ["tpu"], marker = "extra == 'extra-8-nanochat-tpu' or (extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
 ]
 
 [package.dev-dependencies]
@@ -1120,12 +1258,14 @@ requires-dist = [
     { name = "rustbpe", specifier = ">=0.1.0" },
     { name = "setuptools", marker = "extra == 'cpu'", specifier = ">=65.0.0" },
     { name = "tiktoken", specifier = ">=0.11.0" },
-    { name = "torch", specifier = "==2.9.1" },
+    { name = "torch", specifier = ">=2.9.0,<2.10" },
     { name = "torch", marker = "extra == 'cpu'", specifier = "==2.9.1", index = "https://download.pytorch.org/whl/cpu", conflict = { package = "nanochat", extra = "cpu" } },
     { name = "torch", marker = "extra == 'gpu'", specifier = "==2.9.1", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "nanochat", extra = "gpu" } },
+    { name = "torch", marker = "extra == 'tpu'", specifier = "==2.9.0", index = "https://download.pytorch.org/whl/cpu", conflict = { package = "nanochat", extra = "tpu" } },
+    { name = "torch-xla", extras = ["tpu"], marker = "extra == 'tpu'", specifier = "==2.9.0" },
     { name = "wandb", specifier = ">=0.21.3" },
 ]
-provides-extras = ["cpu", "gpu"]
+provides-extras = ["tpu", "cpu", "gpu"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1149,13 +1289,14 @@ name = "networkx"
 version = "3.4.2"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version < '3.11' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu'",
-    "python_full_version < '3.11' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu'",
-    "python_full_version < '3.11' and sys_platform == 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version < '3.11' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version < '3.11' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version < '3.11' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version < '3.11' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version < '3.11' and sys_platform == 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version < '3.11' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version < '3.11' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
     "python_full_version < '3.11' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version < '3.11' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version < '3.11' and sys_platform != 'darwin' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version < '3.11' and sys_platform == 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/fd/1d/06475e1cd5264c0b870ea2cc6fdb3e37177c1e565c43f56ff17a10e3937f/networkx-3.4.2.tar.gz", hash = "sha256:307c3669428c5362aab27c8a1260aa8f47c4e91d3891f48be0141738d8d053e1", size = 2151368, upload-time = "2024-10-21T12:39:38.695Z" }
 wheels = [
@@ -1167,20 +1308,22 @@ name = "networkx"
 version = "3.5"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version >= '3.12' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu'",
-    "python_full_version >= '3.12' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu'",
-    "python_full_version == '3.11.*' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu'",
-    "python_full_version == '3.11.*' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu'",
-    "python_full_version >= '3.12' and sys_platform == 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version >= '3.12' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version == '3.11.*' and sys_platform == 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version == '3.11.*' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version >= '3.12' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version == '3.11.*' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version >= '3.12' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version >= '3.12' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version == '3.11.*' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version == '3.11.*' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version >= '3.12' and sys_platform == 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version >= '3.12' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version == '3.11.*' and sys_platform == 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version == '3.11.*' and sys_platform != 'darwin' and sys_platform != 'linux' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version >= '3.12' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
+    "python_full_version == '3.11.*' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu' and extra != 'extra-8-nanochat-tpu'",
     "python_full_version >= '3.12' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version >= '3.12' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version >= '3.12' and sys_platform != 'darwin' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
     "python_full_version == '3.11.*' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
-    "python_full_version == '3.11.*' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version == '3.11.*' and sys_platform != 'darwin' and sys_platform != 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version >= '3.12' and sys_platform == 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
+    "python_full_version == '3.11.*' and sys_platform == 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/6c/4f/ccdb8ad3a38e583f214547fd2f7ff1fc160c43a75af88e6aec213404b96a/networkx-3.5.tar.gz", hash = "sha256:d4c6f9cf81f52d69230866796b82afbccdec3db7ae4fbd1b65ea750feed50037", size = 2471065, upload-time = "2025-05-29T11:35:07.804Z" }
 wheels = [
@@ -1264,7 +1407,7 @@ name = "nvidia-cudnn-cu12"
 version = "9.10.2.21"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas-cu12", marker = "(sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
+    { name = "nvidia-cublas-cu12", marker = "extra == 'extra-8-nanochat-gpu' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fa/41/e79269ce215c857c935fd86bcfe91a451a584dfc27f1e068f568b9ad1ab7/nvidia_cudnn_cu12-9.10.2.21-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:c9132cc3f8958447b4910a1720036d9eff5928cc3179b0a51fb6d167c6cc87d8", size = 705026878, upload-time = "2025-06-06T21:52:51.348Z" },
@@ -1277,7 +1420,7 @@ name = "nvidia-cufft-cu12"
 version = "11.3.3.83"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink-cu12", marker = "(sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
+    { name = "nvidia-nvjitlink-cu12", marker = "extra == 'extra-8-nanochat-gpu' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/60/bc/7771846d3a0272026c416fbb7e5f4c1f146d6d80704534d0b187dd6f4800/nvidia_cufft_cu12-11.3.3.83-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:848ef7224d6305cdb2a4df928759dca7b1201874787083b6e7550dd6765ce69a", size = 193109211, upload-time = "2025-03-07T01:44:56.873Z" },
@@ -1309,9 +1452,9 @@ name = "nvidia-cusolver-cu12"
 version = "11.7.3.90"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas-cu12", marker = "(sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-cusparse-cu12", marker = "(sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-nvjitlink-cu12", marker = "(sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
+    { name = "nvidia-cublas-cu12", marker = "extra == 'extra-8-nanochat-gpu' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "nvidia-cusparse-cu12", marker = "extra == 'extra-8-nanochat-gpu' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "nvidia-nvjitlink-cu12", marker = "extra == 'extra-8-nanochat-gpu' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c8/32/f7cd6ce8a7690544d084ea21c26e910a97e077c9b7f07bf5de623ee19981/nvidia_cusolver_cu12-11.7.3.90-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:db9ed69dbef9715071232caa9b69c52ac7de3a95773c2db65bdba85916e4e5c0", size = 267229841, upload-time = "2025-03-07T01:46:54.356Z" },
@@ -1324,7 +1467,7 @@ name = "nvidia-cusparse-cu12"
 version = "12.5.8.93"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink-cu12", marker = "(sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
+    { name = "nvidia-nvjitlink-cu12", marker = "extra == 'extra-8-nanochat-gpu' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/bc/f7/cd777c4109681367721b00a106f491e0d0d15cfa1fd59672ce580ce42a97/nvidia_cusparse_cu12-12.5.8.93-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:9b6c161cb130be1a07a27ea6923df8141f3c295852f4b260c65f18f3e0a091dc", size = 288117129, upload-time = "2025-03-07T01:47:40.407Z" },
@@ -1524,6 +1667,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f9/e2/3e91f31a7d2b083fe6ef3fa267035b518369d9511ffab804f839851d2779/pluggy-1.6.0.tar.gz", hash = "sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3", size = 69412, upload-time = "2025-05-15T12:30:07.975Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl", hash = "sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746", size = 20538, upload-time = "2025-05-15T12:30:06.134Z" },
+]
+
+[[package]]
+name = "prometheus-client"
+version = "0.26.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/52/73/f1334c29c2af4cd9dba6c7817e61b611bd0215e2eb5565c6064a4de18802/prometheus_client-0.26.0.tar.gz", hash = "sha256:04a91bcf94e2cf74a44a1a874d651a2e853ed354b6e822f3b7487751465d5c2b", size = 92910, upload-time = "2026-07-24T19:36:41.893Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/eb/a3/b69efbf4143b5b9859b977770bbbabcc2796b702fa69dc40271e45cd5a56/prometheus_client-0.26.0-py3-none-any.whl", hash = "sha256:fa93d06737aa02bacd05794768508bb97d2fbee28cb3bca04eaae92f0ca953d6", size = 64494, upload-time = "2026-07-24T19:36:40.854Z" },
 ]
 
 [[package]]
@@ -1763,13 +1915,13 @@ name = "pytest"
 version = "8.4.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "exceptiongroup", marker = "python_full_version < '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+    { name = "exceptiongroup", marker = "python_full_version < '3.11'" },
     { name = "iniconfig" },
     { name = "packaging" },
     { name = "pluggy" },
     { name = "pygments" },
-    { name = "tomli", marker = "python_full_version < '3.11' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/a3/5c/00a0e072241553e1a7496d638deababa67c5058571567b92a7eaa258397c/pytest-8.4.2.tar.gz", hash = "sha256:86c0d0b93306b961d58d62a4db4879f27fe25513d4b969df351abdddb3c30e01", size = 1519618, upload-time = "2025-09-04T14:34:22.711Z" }
 wheels = [
@@ -1846,7 +1998,7 @@ name = "pyzmq"
 version = "27.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cffi", marker = "implementation_name == 'pypy' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
+    { name = "cffi", marker = "implementation_name == 'pypy'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/04/0b/3c9baedbdf613ecaa7aa07027780b8867f57b6293b6ee50de316c9f3222b/pyzmq-27.1.0.tar.gz", hash = "sha256:ac0765e3d44455adb6ddbf4417dcce460fc40a05978c08efdf2948072f6db540", size = 281750, upload-time = "2025-09-08T23:10:18.157Z" }
 wheels = [
@@ -2006,6 +2158,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c9/74/b3ff8e6c8446842c3f5c837e9c3dfcfe2018ea6ecef224c710c85ef728f4/requests-2.32.5.tar.gz", hash = "sha256:dbba0bac56e100853db0ea71b82b4dfd5fe2bf6d3754a8893c3af500cec7d7cf", size = 134517, upload-time = "2025-08-18T20:46:02.573Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/1e/db/4254e3eabe8020b458f1a747140d32277ec7a271daf1d235b70dc0b4e6e3/requests-2.32.5-py3-none-any.whl", hash = "sha256:2462f94637a34fd532264295e186976db0f5d453d1cdd31473c85a6a161affb6", size = 64738, upload-time = "2025-08-18T20:46:00.542Z" },
+]
+
+[[package]]
+name = "rich"
+version = "15.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "markdown-it-py" },
+    { name = "pygments" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c0/8f/0722ca900cc807c13a6a0c696dacf35430f72e0ec571c4275d2371fca3e9/rich-15.0.0.tar.gz", hash = "sha256:edd07a4824c6b40189fb7ac9bc4c52536e9780fbbfbddf6f1e2502c31b068c36", size = 230680, upload-time = "2026-04-12T08:24:00.75Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/82/3b/64d4899d73f91ba49a8c18a8ff3f0ea8f1c1d75481760df8c68ef5235bf5/rich-15.0.0-py3-none-any.whl", hash = "sha256:33bd4ef74232fb73fe9279a257718407f169c09b78a87ad3d296f548e27de0bb", size = 310654, upload-time = "2026-04-12T08:24:02.83Z" },
 ]
 
 [[package]]
@@ -2188,6 +2353,84 @@ wheels = [
 
 [[package]]
 name = "torch"
+version = "2.9.0"
+source = { registry = "https://download.pytorch.org/whl/cpu" }
+resolution-markers = [
+    "python_full_version >= '3.12' and sys_platform == 'darwin'",
+    "python_full_version == '3.11.*' and sys_platform == 'darwin'",
+    "python_full_version < '3.11' and sys_platform == 'darwin'",
+]
+dependencies = [
+    { name = "filelock", marker = "(sys_platform == 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "fsspec", marker = "(sys_platform == 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "jinja2", marker = "(sys_platform == 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.11' and sys_platform == 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "networkx", version = "3.5", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.11' and sys_platform == 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "setuptools", marker = "(python_full_version >= '3.12' and sys_platform == 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "sympy", marker = "(sys_platform == 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "typing-extensions", marker = "(sys_platform == 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+]
+wheels = [
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0-cp310-none-macosx_11_0_arm64.whl", hash = "sha256:59484193b01299bf669520505a72b29d59a0028ae4c6d95f492938f186592208", upload-time = "2025-10-14T17:26:16Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0-cp311-none-macosx_11_0_arm64.whl", hash = "sha256:aa4483602586cc9a35d1cf33771a9977f05f642b9161518a289e36548a0b77c2", upload-time = "2025-10-14T17:26:16Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0-cp312-none-macosx_11_0_arm64.whl", hash = "sha256:4de0ed8cbc457a506dbca40376e206a29efee10756a00f1f3404bf67ad737d04", upload-time = "2025-10-14T17:26:17Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0-cp313-cp313t-macosx_11_0_arm64.whl", hash = "sha256:259548471194ab63d7ea273873053a6e3cc23530c1510f01e9d7ad259187bbd0", upload-time = "2025-10-14T17:26:17Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0-cp313-none-macosx_11_0_arm64.whl", hash = "sha256:e24836d968b54ef4dfb05594001a61958711ac9224026291e4e3f92f83a6fd7f", upload-time = "2025-10-14T17:26:17Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:d8e2ab7f86010330bdcc39c8b2c795590cc75e37df4823cdaee2c98d6e3ff4a3", upload-time = "2025-10-14T17:26:18Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:a3e859039c985d8e3ea60d7a54ca7e97ea2ae15e31beced4f3260128a161bb01", upload-time = "2025-10-14T17:26:18Z" },
+]
+
+[[package]]
+name = "torch"
+version = "2.9.0+cpu"
+source = { registry = "https://download.pytorch.org/whl/cpu" }
+resolution-markers = [
+    "python_full_version >= '3.12' and sys_platform == 'linux'",
+    "python_full_version >= '3.12' and sys_platform != 'darwin' and sys_platform != 'linux'",
+    "python_full_version == '3.11.*' and sys_platform == 'linux'",
+    "python_full_version < '3.11' and sys_platform == 'linux'",
+    "python_full_version == '3.11.*' and sys_platform != 'darwin' and sys_platform != 'linux'",
+    "python_full_version < '3.11' and sys_platform != 'darwin' and sys_platform != 'linux'",
+]
+dependencies = [
+    { name = "filelock", marker = "(sys_platform != 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "fsspec", marker = "(sys_platform != 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "jinja2", marker = "(sys_platform != 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.11' and sys_platform != 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "networkx", version = "3.5", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.11' and sys_platform != 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "setuptools", marker = "(python_full_version >= '3.12' and sys_platform != 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "sympy", marker = "(sys_platform != 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "typing-extensions", marker = "(sys_platform != 'darwin' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+]
+wheels = [
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0%2Bcpu-cp310-cp310-manylinux_2_28_aarch64.whl", hash = "sha256:b224792ea567b52c7f1ce1d789567f6920e06fd3b339fa1e1b05948845f783ad", upload-time = "2025-10-14T17:26:00Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0%2Bcpu-cp310-cp310-manylinux_2_28_x86_64.whl", hash = "sha256:bd2a257e670ede9fc01c6d76dccdc473040913b8e9328169bf177dbdc38e2484", upload-time = "2025-10-14T17:26:01Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0%2Bcpu-cp310-cp310-win_amd64.whl", hash = "sha256:96f3f7aa4eb9e7fc5af8a722eaf1e5e32e3039dbafe817178d7b90a8566be32d", upload-time = "2025-10-14T17:26:05Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0%2Bcpu-cp311-cp311-manylinux_2_28_aarch64.whl", hash = "sha256:da77341ccaba31762d9238b0942c165c4582a26818f3045b052b39cebdd7ad9d", upload-time = "2025-10-14T17:26:04Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0%2Bcpu-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:add3e93ecc1eeaa6853f6a973ce60ffb3cb14ed2e80f5055e139b09385dce0a7", upload-time = "2025-10-14T17:26:06Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0%2Bcpu-cp311-cp311-win_amd64.whl", hash = "sha256:389e1e0b8083fd355f7caf5ba82356b5e01c318998bd575dbf2285a0d8137089", upload-time = "2025-10-14T17:26:00Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0%2Bcpu-cp311-cp311-win_arm64.whl", hash = "sha256:5ce3d01aef91dc078fbb121814e556d55bc886d303efaf42c4fe67e411f5f9ad", upload-time = "2025-10-14T17:26:01Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0%2Bcpu-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:3a651434ae1248b0568c12b5f9e3acc8942eb28378d9d04a79302938b68c6f24", upload-time = "2025-10-14T17:26:02Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:28f6eb31b08180a5c5e98d5bc14eef6909c9f5a1dbff9632c3e02a8773449349", upload-time = "2025-10-14T17:26:03Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0%2Bcpu-cp312-cp312-win_amd64.whl", hash = "sha256:e438061b87ec7dd6018fca9f975219889aa0a3f6cdc3ea10dd0ae2bc7f1c47ce", upload-time = "2025-10-14T17:26:05Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0%2Bcpu-cp312-cp312-win_arm64.whl", hash = "sha256:eb13ff1c34e338d722e76a4fd83b8d282782505bd1b99af4b3c32da66eba6eb4", upload-time = "2025-10-14T17:26:06Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0%2Bcpu-cp313-cp313-manylinux_2_28_aarch64.whl", hash = "sha256:be4438d8dad7f0d5a5e54f0feef8a893446894ec87f102bb1d82dcc4518542e4", upload-time = "2025-10-14T17:26:07Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0%2Bcpu-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:6c9b217584400963d5b4daddb3711ec7a3778eab211e18654fba076cce3b8682", upload-time = "2025-10-14T17:26:07Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0%2Bcpu-cp313-cp313-win_amd64.whl", hash = "sha256:728372e3f58c5826445f677746e5311c1935c1a7c59599f73a49ded850e038e8", upload-time = "2025-10-14T17:26:10Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0%2Bcpu-cp313-cp313-win_arm64.whl", hash = "sha256:95e56c26f919fbb98f16e7a0b87af494b893f9da9a65a020f17a01c13e520a81", upload-time = "2025-10-14T17:26:08Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0%2Bcpu-cp313-cp313t-manylinux_2_28_aarch64.whl", hash = "sha256:6c777160288b08555820781ae0f3a2c67a59bd24b065e88ca1ec20e2f9dc8ac7", upload-time = "2025-10-14T17:26:09Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0%2Bcpu-cp313-cp313t-manylinux_2_28_x86_64.whl", hash = "sha256:528fd338311f31c9fb18038cafd00e6eae0bf5ad5577521701acb62510753d18", upload-time = "2025-10-14T17:26:09Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0%2Bcpu-cp313-cp313t-win_amd64.whl", hash = "sha256:d572863990e7d2762b547735ef589f6350d9eb4e441d38753a1c33636698cf4c", upload-time = "2025-10-14T17:26:11Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0%2Bcpu-cp314-cp314-manylinux_2_28_aarch64.whl", hash = "sha256:44aadb735774d4a99525d2ec29126b23016c44a07b02ce6c237dfa61a223dd52", upload-time = "2025-10-14T17:26:12Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0%2Bcpu-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:b355e07b7f0c369cb031adfcbff5c37a609abcea091b918a39886412afd2e07d", upload-time = "2025-10-14T17:26:14Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0%2Bcpu-cp314-cp314-win_amd64.whl", hash = "sha256:c2698999361d73c2d25d7cc8a787130188d49b183abb18b554228daa102e1594", upload-time = "2025-10-14T17:26:12Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0%2Bcpu-cp314-cp314t-manylinux_2_28_aarch64.whl", hash = "sha256:fa0d1373d04b30ff8f12d542135d292f1a1ddb7c0d852a3d487a320360e5dab9", upload-time = "2025-10-14T17:26:13Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0%2Bcpu-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:2f49bb57a5fe0dc7f8e73ea9e5d36ebda2ea25b8a714a788f0fc2fc47d20a830", upload-time = "2025-10-14T17:26:13Z" },
+    { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.0%2Bcpu-cp314-cp314t-win_amd64.whl", hash = "sha256:3a60d1ecf27a9cce839b3aa665b26f0af1b1007b9c9f1e7f597f6b7bdf107617", upload-time = "2025-10-14T17:26:15Z" },
+]
+
+[[package]]
+name = "torch"
 version = "2.9.1"
 source = { registry = "https://download.pytorch.org/whl/cpu" }
 resolution-markers = [
@@ -2196,14 +2439,14 @@ resolution-markers = [
     "python_full_version < '3.11' and sys_platform == 'darwin'",
 ]
 dependencies = [
-    { name = "filelock", marker = "(sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "fsspec", marker = "(sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "jinja2", marker = "(sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.11' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu') or (python_full_version >= '3.11' and extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (sys_platform != 'darwin' and extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "networkx", version = "3.5", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.11' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu') or (python_full_version < '3.11' and extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (sys_platform != 'darwin' and extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "setuptools", marker = "(python_full_version >= '3.12' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu') or (python_full_version < '3.12' and extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (sys_platform != 'darwin' and extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "sympy", marker = "(sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "typing-extensions", marker = "(sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
+    { name = "filelock", marker = "(sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "fsspec", marker = "(sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "jinja2", marker = "(sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.11' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "networkx", version = "3.5", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.11' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "setuptools", marker = "(python_full_version >= '3.12' and sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "sympy", marker = "(sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "typing-extensions", marker = "(sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
 ]
 wheels = [
     { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.1-cp310-none-macosx_11_0_arm64.whl", hash = "sha256:bf1e68cfb935ae2046374ff02a7aa73dda70351b46342846f557055b3a540bf0", upload-time = "2026-01-23T15:12:43Z" },
@@ -2213,75 +2456,6 @@ wheels = [
     { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.1-cp313-none-macosx_11_0_arm64.whl", hash = "sha256:bcee64ae7aa65876ceeae6dcaebe75109485b213528c74939602208a20706e3f", upload-time = "2026-01-23T15:12:48Z" },
     { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.1-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:defadbeb055cfcf5def58f70937145aecbd7a4bc295238ded1d0e85ae2cf0e1d", upload-time = "2026-01-23T15:12:48Z" },
     { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.1-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:886f84b181f766f53265ba0a1d503011e60f53fff9d569563ef94f24160e1072", upload-time = "2026-01-23T15:12:50Z" },
-]
-
-[[package]]
-name = "torch"
-version = "2.9.1"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '3.12' and sys_platform == 'linux'",
-    "python_full_version >= '3.12' and sys_platform != 'linux'",
-    "python_full_version == '3.11.*' and sys_platform == 'linux'",
-    "python_full_version < '3.11' and sys_platform == 'linux'",
-    "python_full_version == '3.11.*' and sys_platform != 'linux'",
-    "python_full_version < '3.11' and sys_platform != 'linux'",
-]
-dependencies = [
-    { name = "filelock", marker = "(extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu')" },
-    { name = "fsspec", marker = "(extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu')" },
-    { name = "jinja2", marker = "(extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu')" },
-    { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.11' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "networkx", version = "3.5", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.11' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-cublas-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-cuda-cupti-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-cuda-nvrtc-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-cuda-runtime-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-cudnn-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-cufft-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-cufile-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-curand-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-cusolver-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-cusparse-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-cusparselt-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-nccl-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-nvjitlink-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-nvshmem-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-nvtx-cu12", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "setuptools", marker = "(python_full_version >= '3.12' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "sympy", marker = "(extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu')" },
-    { name = "triton", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux' and extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "typing-extensions", marker = "(extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra != 'extra-8-nanochat-cpu' and extra != 'extra-8-nanochat-gpu')" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/5f/56/9577683b23072075ed2e40d725c52c2019d71a972fab8e083763da8e707e/torch-2.9.1-cp310-cp310-manylinux_2_28_aarch64.whl", hash = "sha256:1cc208435f6c379f9b8fdfd5ceb5be1e3b72a6bdf1cb46c0d2812aa73472db9e", size = 104207681, upload-time = "2025-11-12T15:19:56.48Z" },
-    { url = "https://files.pythonhosted.org/packages/38/45/be5a74f221df8f4b609b78ff79dc789b0cc9017624544ac4dd1c03973150/torch-2.9.1-cp310-cp310-manylinux_2_28_x86_64.whl", hash = "sha256:9fd35c68b3679378c11f5eb73220fdcb4e6f4592295277fbb657d31fd053237c", size = 899794036, upload-time = "2025-11-12T15:21:01.886Z" },
-    { url = "https://files.pythonhosted.org/packages/67/95/a581e8a382596b69385a44bab2733f1273d45c842f5d4a504c0edc3133b6/torch-2.9.1-cp310-cp310-win_amd64.whl", hash = "sha256:2af70e3be4a13becba4655d6cc07dcfec7ae844db6ac38d6c1dafeb245d17d65", size = 110969861, upload-time = "2025-11-12T15:21:30.145Z" },
-    { url = "https://files.pythonhosted.org/packages/ad/51/1756dc128d2bf6ea4e0a915cb89ea5e730315ff33d60c1ff56fd626ba3eb/torch-2.9.1-cp310-none-macosx_11_0_arm64.whl", hash = "sha256:a83b0e84cc375e3318a808d032510dde99d696a85fe9473fc8575612b63ae951", size = 74452222, upload-time = "2025-11-12T15:20:46.223Z" },
-    { url = "https://files.pythonhosted.org/packages/15/db/c064112ac0089af3d2f7a2b5bfbabf4aa407a78b74f87889e524b91c5402/torch-2.9.1-cp311-cp311-manylinux_2_28_aarch64.whl", hash = "sha256:62b3fd888277946918cba4478cf849303da5359f0fb4e3bfb86b0533ba2eaf8d", size = 104220430, upload-time = "2025-11-12T15:20:31.705Z" },
-    { url = "https://files.pythonhosted.org/packages/56/be/76eaa36c9cd032d3b01b001e2c5a05943df75f26211f68fae79e62f87734/torch-2.9.1-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:d033ff0ac3f5400df862a51bdde9bad83561f3739ea0046e68f5401ebfa67c1b", size = 899821446, upload-time = "2025-11-12T15:20:15.544Z" },
-    { url = "https://files.pythonhosted.org/packages/47/cc/7a2949e38dfe3244c4df21f0e1c27bce8aedd6c604a587dd44fc21017cb4/torch-2.9.1-cp311-cp311-win_amd64.whl", hash = "sha256:0d06b30a9207b7c3516a9e0102114024755a07045f0c1d2f2a56b1819ac06bcb", size = 110973074, upload-time = "2025-11-12T15:21:39.958Z" },
-    { url = "https://files.pythonhosted.org/packages/1e/ce/7d251155a783fb2c1bb6837b2b7023c622a2070a0a72726ca1df47e7ea34/torch-2.9.1-cp311-none-macosx_11_0_arm64.whl", hash = "sha256:52347912d868653e1528b47cafaf79b285b98be3f4f35d5955389b1b95224475", size = 74463887, upload-time = "2025-11-12T15:20:36.611Z" },
-    { url = "https://files.pythonhosted.org/packages/0f/27/07c645c7673e73e53ded71705045d6cb5bae94c4b021b03aa8d03eee90ab/torch-2.9.1-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:da5f6f4d7f4940a173e5572791af238cb0b9e21b1aab592bd8b26da4c99f1cd6", size = 104126592, upload-time = "2025-11-12T15:20:41.62Z" },
-    { url = "https://files.pythonhosted.org/packages/19/17/e377a460603132b00760511299fceba4102bd95db1a0ee788da21298ccff/torch-2.9.1-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:27331cd902fb4322252657f3902adf1c4f6acad9dcad81d8df3ae14c7c4f07c4", size = 899742281, upload-time = "2025-11-12T15:22:17.602Z" },
-    { url = "https://files.pythonhosted.org/packages/b1/1a/64f5769025db846a82567fa5b7d21dba4558a7234ee631712ee4771c436c/torch-2.9.1-cp312-cp312-win_amd64.whl", hash = "sha256:81a285002d7b8cfd3fdf1b98aa8df138d41f1a8334fd9ea37511517cedf43083", size = 110940568, upload-time = "2025-11-12T15:21:18.689Z" },
-    { url = "https://files.pythonhosted.org/packages/6e/ab/07739fd776618e5882661d04c43f5b5586323e2f6a2d7d84aac20d8f20bd/torch-2.9.1-cp312-none-macosx_11_0_arm64.whl", hash = "sha256:c0d25d1d8e531b8343bea0ed811d5d528958f1dcbd37e7245bc686273177ad7e", size = 74479191, upload-time = "2025-11-12T15:21:25.816Z" },
-    { url = "https://files.pythonhosted.org/packages/20/60/8fc5e828d050bddfab469b3fe78e5ab9a7e53dda9c3bdc6a43d17ce99e63/torch-2.9.1-cp313-cp313-manylinux_2_28_aarch64.whl", hash = "sha256:c29455d2b910b98738131990394da3e50eea8291dfeb4b12de71ecf1fdeb21cb", size = 104135743, upload-time = "2025-11-12T15:21:34.936Z" },
-    { url = "https://files.pythonhosted.org/packages/f2/b7/6d3f80e6918213babddb2a37b46dbb14c15b14c5f473e347869a51f40e1f/torch-2.9.1-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:524de44cd13931208ba2c4bde9ec7741fd4ae6bfd06409a604fc32f6520c2bc9", size = 899749493, upload-time = "2025-11-12T15:24:36.356Z" },
-    { url = "https://files.pythonhosted.org/packages/a6/47/c7843d69d6de8938c1cbb1eba426b1d48ddf375f101473d3e31a5fc52b74/torch-2.9.1-cp313-cp313-win_amd64.whl", hash = "sha256:545844cc16b3f91e08ce3b40e9c2d77012dd33a48d505aed34b7740ed627a1b2", size = 110944162, upload-time = "2025-11-12T15:21:53.151Z" },
-    { url = "https://files.pythonhosted.org/packages/28/0e/2a37247957e72c12151b33a01e4df651d9d155dd74d8cfcbfad15a79b44a/torch-2.9.1-cp313-cp313t-macosx_11_0_arm64.whl", hash = "sha256:5be4bf7496f1e3ffb1dd44b672adb1ac3f081f204c5ca81eba6442f5f634df8e", size = 74830751, upload-time = "2025-11-12T15:21:43.792Z" },
-    { url = "https://files.pythonhosted.org/packages/4b/f7/7a18745edcd7b9ca2381aa03353647bca8aace91683c4975f19ac233809d/torch-2.9.1-cp313-cp313t-manylinux_2_28_aarch64.whl", hash = "sha256:30a3e170a84894f3652434b56d59a64a2c11366b0ed5776fab33c2439396bf9a", size = 104142929, upload-time = "2025-11-12T15:21:48.319Z" },
-    { url = "https://files.pythonhosted.org/packages/f4/dd/f1c0d879f2863ef209e18823a988dc7a1bf40470750e3ebe927efdb9407f/torch-2.9.1-cp313-cp313t-manylinux_2_28_x86_64.whl", hash = "sha256:8301a7b431e51764629208d0edaa4f9e4c33e6df0f2f90b90e261d623df6a4e2", size = 899748978, upload-time = "2025-11-12T15:23:04.568Z" },
-    { url = "https://files.pythonhosted.org/packages/1f/9f/6986b83a53b4d043e36f3f898b798ab51f7f20fdf1a9b01a2720f445043d/torch-2.9.1-cp313-cp313t-win_amd64.whl", hash = "sha256:2e1c42c0ae92bf803a4b2409fdfed85e30f9027a66887f5e7dcdbc014c7531db", size = 111176995, upload-time = "2025-11-12T15:22:01.618Z" },
-    { url = "https://files.pythonhosted.org/packages/40/60/71c698b466dd01e65d0e9514b5405faae200c52a76901baf6906856f17e4/torch-2.9.1-cp313-none-macosx_11_0_arm64.whl", hash = "sha256:2c14b3da5df416cf9cb5efab83aa3056f5b8cd8620b8fde81b4987ecab730587", size = 74480347, upload-time = "2025-11-12T15:21:57.648Z" },
-    { url = "https://files.pythonhosted.org/packages/48/50/c4b5112546d0d13cc9eaa1c732b823d676a9f49ae8b6f97772f795874a03/torch-2.9.1-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:1edee27a7c9897f4e0b7c14cfc2f3008c571921134522d5b9b5ec4ebbc69041a", size = 74433245, upload-time = "2025-11-12T15:22:39.027Z" },
-    { url = "https://files.pythonhosted.org/packages/81/c9/2628f408f0518b3bae49c95f5af3728b6ab498c8624ab1e03a43dd53d650/torch-2.9.1-cp314-cp314-manylinux_2_28_aarch64.whl", hash = "sha256:19d144d6b3e29921f1fc70503e9f2fc572cde6a5115c0c0de2f7ca8b1483e8b6", size = 104134804, upload-time = "2025-11-12T15:22:35.222Z" },
-    { url = "https://files.pythonhosted.org/packages/28/fc/5bc91d6d831ae41bf6e9e6da6468f25330522e92347c9156eb3f1cb95956/torch-2.9.1-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:c432d04376f6d9767a9852ea0def7b47a7bbc8e7af3b16ac9cf9ce02b12851c9", size = 899747132, upload-time = "2025-11-12T15:23:36.068Z" },
-    { url = "https://files.pythonhosted.org/packages/63/5d/e8d4e009e52b6b2cf1684bde2a6be157b96fb873732542fb2a9a99e85a83/torch-2.9.1-cp314-cp314-win_amd64.whl", hash = "sha256:d187566a2cdc726fc80138c3cdb260970fab1c27e99f85452721f7759bbd554d", size = 110934845, upload-time = "2025-11-12T15:22:48.367Z" },
-    { url = "https://files.pythonhosted.org/packages/bd/b2/2d15a52516b2ea3f414643b8de68fa4cb220d3877ac8b1028c83dc8ca1c4/torch-2.9.1-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:cb10896a1f7fedaddbccc2017ce6ca9ecaaf990f0973bdfcf405439750118d2c", size = 74823558, upload-time = "2025-11-12T15:22:43.392Z" },
-    { url = "https://files.pythonhosted.org/packages/86/5c/5b2e5d84f5b9850cd1e71af07524d8cbb74cba19379800f1f9f7c997fc70/torch-2.9.1-cp314-cp314t-manylinux_2_28_aarch64.whl", hash = "sha256:0a2bd769944991c74acf0c4ef23603b9c777fdf7637f115605a4b2d8023110c7", size = 104145788, upload-time = "2025-11-12T15:23:52.109Z" },
-    { url = "https://files.pythonhosted.org/packages/a9/8c/3da60787bcf70add986c4ad485993026ac0ca74f2fc21410bc4eb1bb7695/torch-2.9.1-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:07c8a9660bc9414c39cac530ac83b1fb1b679d7155824144a40a54f4a47bfa73", size = 899735500, upload-time = "2025-11-12T15:24:08.788Z" },
-    { url = "https://files.pythonhosted.org/packages/db/2b/f7818f6ec88758dfd21da46b6cd46af9d1b3433e53ddbb19ad1e0da17f9b/torch-2.9.1-cp314-cp314t-win_amd64.whl", hash = "sha256:c88d3299ddeb2b35dcc31753305612db485ab6f1823e37fb29451c8b2732b87e", size = 111163659, upload-time = "2025-11-12T15:23:20.009Z" },
 ]
 
 [[package]]
@@ -2297,14 +2471,14 @@ resolution-markers = [
     "python_full_version < '3.11' and sys_platform != 'darwin' and sys_platform != 'linux'",
 ]
 dependencies = [
-    { name = "filelock", marker = "(sys_platform != 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "fsspec", marker = "(sys_platform != 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "jinja2", marker = "(sys_platform != 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.11' and sys_platform != 'darwin' and extra == 'extra-8-nanochat-cpu') or (python_full_version >= '3.11' and extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "networkx", version = "3.5", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.11' and sys_platform != 'darwin' and extra == 'extra-8-nanochat-cpu') or (python_full_version < '3.11' and extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "setuptools", marker = "(python_full_version >= '3.12' and sys_platform != 'darwin' and extra == 'extra-8-nanochat-cpu') or (python_full_version < '3.12' and extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (sys_platform == 'darwin' and extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "sympy", marker = "(sys_platform != 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "typing-extensions", marker = "(sys_platform != 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
+    { name = "filelock", marker = "(sys_platform != 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "fsspec", marker = "(sys_platform != 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "jinja2", marker = "(sys_platform != 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.11' and sys_platform != 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "networkx", version = "3.5", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.11' and sys_platform != 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "setuptools", marker = "(python_full_version >= '3.12' and sys_platform != 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "sympy", marker = "(sys_platform != 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "typing-extensions", marker = "(sys_platform != 'darwin' and extra == 'extra-8-nanochat-cpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
 ]
 wheels = [
     { url = "https://download-r2.pytorch.org/whl/cpu/torch-2.9.1%2Bcpu-cp310-cp310-manylinux_2_28_aarch64.whl", hash = "sha256:10866c8a48c4aa5ae3f48538dc8a055b99c57d9c6af2bf5dd715374d9d6ddca3", upload-time = "2026-01-23T15:12:51Z" },
@@ -2346,30 +2520,30 @@ resolution-markers = [
     "python_full_version < '3.11' and sys_platform != 'linux'",
 ]
 dependencies = [
-    { name = "filelock", marker = "extra == 'extra-8-nanochat-gpu'" },
-    { name = "fsspec", marker = "extra == 'extra-8-nanochat-gpu'" },
-    { name = "jinja2", marker = "extra == 'extra-8-nanochat-gpu'" },
-    { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.11' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "networkx", version = "3.5", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.11' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-cublas-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-cuda-cupti-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-cuda-nvrtc-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-cuda-runtime-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-cudnn-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-cufft-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-cufile-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-curand-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-cusolver-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-cusparse-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-cusparselt-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-nccl-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-nvjitlink-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-nvshmem-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "nvidia-nvtx-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "setuptools", marker = "(python_full_version >= '3.12' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "sympy", marker = "extra == 'extra-8-nanochat-gpu'" },
-    { name = "triton", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
-    { name = "typing-extensions", marker = "extra == 'extra-8-nanochat-gpu'" },
+    { name = "filelock", marker = "extra == 'extra-8-nanochat-gpu' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "fsspec", marker = "extra == 'extra-8-nanochat-gpu' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "jinja2", marker = "extra == 'extra-8-nanochat-gpu' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.11' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "networkx", version = "3.5", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version >= '3.11' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "nvidia-cublas-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "nvidia-cuda-cupti-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "nvidia-cuda-nvrtc-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "nvidia-cuda-runtime-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "nvidia-cudnn-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "nvidia-cufft-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "nvidia-cufile-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "nvidia-curand-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "nvidia-cusolver-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "nvidia-cusparse-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "nvidia-cusparselt-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "nvidia-nccl-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "nvidia-nvjitlink-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "nvidia-nvshmem-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "nvidia-nvtx-cu12", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "setuptools", marker = "(python_full_version >= '3.12' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "sympy", marker = "extra == 'extra-8-nanochat-gpu' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "triton", marker = "(sys_platform == 'linux' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu') or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu') or (extra == 'extra-8-nanochat-gpu' and extra == 'extra-8-nanochat-tpu')" },
+    { name = "typing-extensions", marker = "extra == 'extra-8-nanochat-gpu' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-tpu')" },
 ]
 wheels = [
     { url = "https://download-r2.pytorch.org/whl/cu128/torch-2.9.1%2Bcu128-cp310-cp310-manylinux_2_28_aarch64.whl", hash = "sha256:72f0f096475e8095a6bea3fba75bd3b46cf42c761b29588f7599314e67a32661", upload-time = "2026-01-26T16:53:51Z" },
@@ -2396,6 +2570,29 @@ wheels = [
 ]
 
 [[package]]
+name = "torch-xla"
+version = "2.9.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "absl-py" },
+    { name = "numpy" },
+    { name = "pyyaml" },
+    { name = "requests" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bc/2b/4e15f247526dc69bcfe7049b29e3ac17915cfcd34e129d1e17ede028c796/torch_xla-2.9.0-cp310-cp310-manylinux_2_28_x86_64.whl", hash = "sha256:bc10e297513c5f8e4049488a7eef4646206f7ef3ef57c741c4bf21ed5ada2692", size = 80300669, upload-time = "2025-11-17T22:40:30.775Z" },
+    { url = "https://files.pythonhosted.org/packages/ce/06/1cf7ba4df0da71ea91ca6b1382b15d655cd94938767740a6c57e13f019aa/torch_xla-2.9.0-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:13027393e252c7583ac364b02af8f1c0f7c497095b653c14ead82fbbda8549c3", size = 80304037, upload-time = "2025-11-17T22:40:34.655Z" },
+    { url = "https://files.pythonhosted.org/packages/e4/30/8f18ac8473eb721cce978877b3d6227730bd069a42e6f0c32f3e1df59608/torch_xla-2.9.0-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:d6b4fbb2704bff08194c170b23dcf6dea562cf3cb53d9951b86667c327b6f5ed", size = 80302207, upload-time = "2025-11-17T22:40:38.151Z" },
+    { url = "https://files.pythonhosted.org/packages/92/e7/46d863ac26f19a8d866bb2e8a1f06a675b9dfdd9b6fb417d244f2f9ebe7c/torch_xla-2.9.0-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:e85ba39f12758a8b3465df28389f6899e31522bc64cc58dd108fbbfeedafb776", size = 80300019, upload-time = "2025-11-17T22:40:41.736Z" },
+]
+
+[package.optional-dependencies]
+tpu = [
+    { name = "libtpu" },
+    { name = "tpu-info" },
+]
+
+[[package]]
 name = "tornado"
 version = "6.5.4"
 source = { registry = "https://pypi.org/simple" }
@@ -2415,11 +2612,27 @@ wheels = [
 ]
 
 [[package]]
+name = "tpu-info"
+version = "0.14.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "grpcio" },
+    { name = "immutabledict" },
+    { name = "packaging" },
+    { name = "prometheus-client" },
+    { name = "protobuf" },
+    { name = "rich" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/da/dc/9e8fc37cfa42e8cb8a9225e57d4c50be668c7ff0a07560ba27c6357f7cce/tpu_info-0.14.2-py3-none-any.whl", hash = "sha256:9e11ccdb4a64b9c6858311a560c992546224a1fa09da660b7b63983af17c4196", size = 44263, upload-time = "2026-07-06T19:21:06.744Z" },
+]
+
+[[package]]
 name = "tqdm"
 version = "4.67.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-8-nanochat-cpu' and extra == 'extra-8-nanochat-gpu')" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/a8/4b/29b4ef32e036bb34e4ab51796dd745cdba7ed47ad142a9f4a1eb8e0c744d/tqdm-4.67.1.tar.gz", hash = "sha256:f8aef9c52c08c13a65f30ea34f4e5aac3fd1a34959879d7e59e63027286627f2", size = 169737, upload-time = "2024-11-24T20:12:22.481Z" }
 wheels = [

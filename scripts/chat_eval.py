@@ -16,6 +16,7 @@ import torch.distributed as dist
 from nanochat.common import compute_init, compute_cleanup, get_dist_info, print0, autodetect_device_type
 from nanochat.checkpoint_manager import load_model
 from nanochat.engine import Engine
+from nanochat.planning_eval import add_planning_args, planning_for_model, planned_completion, PlanningEngine
 
 from tasks.humaneval import HumanEval
 from tasks.mmlu import MMLU
@@ -84,7 +85,7 @@ def run_generative_eval(task_object, tokenizer, model, engine, num_samples, max_
 # A lot easier because we don't have to sample. Therefore, we can actually go
 # batches at a time and just check the logits for correct answer choices.
 
-def run_categorical_eval(task_object, tokenizer, model, batch_size, max_problems=None):
+def run_categorical_eval(task_object, tokenizer, model, batch_size, max_problems=None, planning=None, max_new_tokens=512):
 
     ddp, ddp_rank, ddp_local_rank, ddp_world_size = get_dist_info()
     device = model.get_device()
@@ -110,8 +111,17 @@ def run_categorical_eval(task_object, tokenizer, model, batch_size, max_problems
         prompt_ids = torch.tensor(padded_prompt_ids, dtype=torch.long, device=device)
 
         # Get the logits for the whole batch of conversations in parallel (efficiency win here)
-        with torch.no_grad():
-            logits = model(prompt_ids) # (B, T, V)
+        if planning is not None:
+            # Categorical answers use the first planned output token. No answer
+            # label is supplied to the planner; its only goal is the fixed suffix.
+            logits = torch.stack([
+                planned_completion(model, tokenizer, ids, max_new_tokens, planning)['logits'][0, 0]
+                for ids in [tokenizer.render_for_completion(c) for c in conversations]
+            ]).unsqueeze(1)
+            answer_time_positions = [0] * len(conversations)
+        else:
+            with torch.no_grad():
+                logits = model(prompt_ids) # (B, T, V)
 
         # Focus on the available answer on just the letters corresponding to choices
         # Note that this helps the evaluation a lot because it specifically narrows the focus to only the available letters
@@ -155,7 +165,11 @@ def run_categorical_eval(task_object, tokenizer, model, batch_size, max_problems
 
 def run_chat_eval(task_name, model, tokenizer, engine,
                    batch_size=1, num_samples=1, max_new_tokens=512, temperature=0.0, top_k=50,
-                   max_problems=None):
+                   max_problems=None, planning="auto"):
+    if planning == "auto":
+        planning = planning_for_model(model)
+    if planning is not None:
+        engine = PlanningEngine(model, tokenizer, planning)
     # Create the evaluation object
     task_module = {
         'HumanEval': HumanEval,
@@ -169,7 +183,8 @@ def run_chat_eval(task_name, model, tokenizer, engine,
     if task_object.eval_type == 'generative':
         acc = run_generative_eval(task_object, tokenizer, model, engine, num_samples, max_new_tokens, temperature, top_k, max_problems=max_problems)
     elif task_object.eval_type == 'categorical':
-        acc = run_categorical_eval(task_object, tokenizer, model, batch_size, max_problems=max_problems)
+        acc = run_categorical_eval(task_object, tokenizer, model, batch_size, max_problems=max_problems,
+                                   planning=planning, max_new_tokens=max_new_tokens)
     else:
         raise ValueError(f"Unsupported task evaluation type: {task_object.eval_type}")
     return acc
@@ -182,21 +197,27 @@ if __name__ == "__main__":
     parser.add_argument('-i', '--source', type=str, required=True, help="Source of the model: sft|rl")
     parser.add_argument('-a', '--task-name', type=str, default=None, help="Task name. Default = all tasks. Use | to split multiple tasks.")
     parser.add_argument('-t', '--temperature', type=float, default=0.0)
-    parser.add_argument('-m', '--max-new-tokens', type=int, default=512)
+    parser.add_argument('-m', '--max-new-tokens', type=int, default=None)
     parser.add_argument('-n', '--num-samples', type=int, default=1)
     parser.add_argument('-k', '--top-k', type=int, default=50)
     parser.add_argument('-b', '--batch-size', type=int, default=8, help='Batch size for categorical evaluation')
     parser.add_argument('-g', '--model-tag', type=str, default=None, help='Model tag to load')
     parser.add_argument('-s', '--step', type=int, default=None, help='Step to load')
     parser.add_argument('-x', '--max-problems', type=int, default=None, help='Max problems to evaluate')
-    parser.add_argument('--device-type', type=str, default='', choices=['cuda', 'cpu', 'mps'], help='Device type for evaluation: cuda|cpu|mps. empty => autodetect')
+    parser.add_argument('--device-type', type=str, default='', choices=['cuda', 'cpu', 'mps', 'xla'], help='Device type for evaluation: cuda|cpu|mps|xla. empty => autodetect')
+    add_planning_args(parser, max_new_tokens=512)
     args = parser.parse_args()
+    if args.max_new_tokens is None:
+        args.max_new_tokens = args.eval_max_new_tokens
+    else:
+        args.eval_max_new_tokens = args.max_new_tokens
 
     device_type = autodetect_device_type() if args.device_type == "" else args.device_type
     ddp, ddp_rank, ddp_local_rank, ddp_world_size, device = compute_init(device_type)
 
     model, tokenizer, meta = load_model(args.source, device, phase="eval", model_tag=args.model_tag, step=args.step)
-    engine = Engine(model, tokenizer)
+    planning = planning_for_model(model, args)
+    engine = PlanningEngine(model, tokenizer, planning) if planning is not None else Engine(model, tokenizer)
 
     # Get the tasks to evaluate on
     all_tasks = ['ARC-Easy', 'ARC-Challenge', 'MMLU', 'GSM8K', 'HumanEval']
@@ -221,6 +242,7 @@ if __name__ == "__main__":
             temperature=args.temperature,
             top_k=args.top_k,
             max_problems=args.max_problems,
+            planning=planning,
         )
         results[task_name] = acc
         print0(f"{task_name} accuracy: {100 * acc:.2f}%")
@@ -235,6 +257,6 @@ if __name__ == "__main__":
             centered_acc = (acc - baseline_acc) / (1.0 - baseline_acc)
             centered_mean += centered_acc
         chatcore_metric = centered_mean / len(results)
-        print0(f"ChatCORE metric: {chatcore_metric:.4f}")
+        print0(f"ChatCORE metric ({'plan' if planning is not None else 'prior'}): {chatcore_metric:.4f}")
 
     compute_cleanup()

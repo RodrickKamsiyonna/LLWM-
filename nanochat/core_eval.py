@@ -165,7 +165,7 @@ def forward_model(model, input_ids):
 
 
 @torch.no_grad()
-def evaluate_example(idx, model, tokenizer, data, device, task_meta):
+def evaluate_example(idx, model, tokenizer, data, device, task_meta, planning=None, max_new_tokens=16):
     """Evaluate a single example, return True if correct, False otherwise"""
     item = data[idx]
     task_type = task_meta['task_type']
@@ -176,9 +176,10 @@ def evaluate_example(idx, model, tokenizer, data, device, task_meta):
     fewshot_examples = []
     if num_fewshot > 0:
         rng = random.Random(1234 + idx)
-        available_indices = [i for i in range(len(data)) if i != idx]
+        pool = task_meta.get('fewshot_pool', data)
+        available_indices = [i for i in range(len(pool)) if i != idx]
         fewshot_indices = rng.sample(available_indices, num_fewshot)
-        fewshot_examples = [data[i] for i in fewshot_indices]
+        fewshot_examples = [pool[i] for i in fewshot_indices]
 
     # Render prompts and batch sequences based on task type
     if task_type == 'multiple_choice':
@@ -192,6 +193,12 @@ def evaluate_example(idx, model, tokenizer, data, device, task_meta):
         tokens, start_idxs, end_idxs = batch_sequences_lm(tokenizer, prompts)
     else:
         raise ValueError(f"Unsupported task type: {task_type}")
+
+    if planning is not None:
+        from nanochat.planning_eval import planned_continuation_scores
+        scores, exact = planned_continuation_scores(model, tokenizer, tokens, start_idxs, end_idxs,
+                                                    max_new_tokens, planning)
+        return exact[0] if task_type == 'language_modeling' else scores.index(min(scores)) == item['gold']
 
     # Some models can't forward sequences beyond a certain length (e.g. GPT-2)
     # In these cases, we have to truncate sequences to max length and adjust the indices
@@ -241,7 +248,7 @@ def evaluate_example(idx, model, tokenizer, data, device, task_meta):
     return is_correct
 
 
-def evaluate_task(model, tokenizer, data, device, task_meta):
+def evaluate_task(model, tokenizer, data, device, task_meta, planning=None, max_new_tokens=16):
     """
     This function is responsible for evaluating one task across many examples.
     It also handles dispatch to all processes if the script is run with torchrun.
@@ -251,7 +258,7 @@ def evaluate_task(model, tokenizer, data, device, task_meta):
     correct = torch.zeros(len(data), dtype=torch.float32, device=device)
     # stride the examples to each rank
     for idx in range(rank, len(data), world_size):
-        is_correct = evaluate_example(idx, model, tokenizer, data, device, task_meta)
+        is_correct = evaluate_example(idx, model, tokenizer, data, device, task_meta, planning, max_new_tokens)
         correct[idx] = float(is_correct)
     # sync results across all the processes if running distributed
     if world_size > 1:

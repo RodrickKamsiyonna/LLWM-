@@ -1,58 +1,17 @@
-#!/bin/bash
-
-# Showing an example run for exercising some of the code paths on the CPU (or MPS on Macbooks)
-# This script was last updated/tuned on Jan 17, 2026.
-
-# Run as:
-# bash runs/runcpu.sh
-
-# NOTE: Training LLMs requires GPU compute and $$$. You will not get far on your Macbook.
-# Think of this run as educational/fun demo, not something you should expect to work well.
-# You may also want to run this script manually and one by one, copy pasting commands into your terminal.
-
-# all the setup stuff
-export NANOCHAT_BASE_DIR="$HOME/.cache/nanochat"
-mkdir -p $NANOCHAT_BASE_DIR
-command -v uv &> /dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
-[ -d ".venv" ] || uv venv
-uv sync --extra cpu
-source .venv/bin/activate
-if [ -z "$WANDB_RUN" ]; then
-    WANDB_RUN=dummy
-fi
-
-# train tokenizer on ~2B characters (~34 seconds on my MacBook Pro M3 Max)
-python -m nanochat.dataset -n 8
-python -m scripts.tok_train --max-chars=2000000000
-python -m scripts.tok_eval
-
-# train a small 6 layer model
-# I tuned this run to complete in about 30 minutes on my MacBook Pro M3 Max.
-# To get better results, try increasing num_iterations, or get other ideas from your favorite LLM.
-python -m scripts.base_train \
-    --depth=6 \
-    --head-dim=64 \
-    --window-pattern=L \
-    --max-seq-len=512 \
-    --device-batch-size=32 \
-    --total-batch-size=16384 \
-    --eval-every=100 \
-    --eval-tokens=524288 \
-    --core-metric-every=-1 \
-    --sample-every=100 \
-    --num-iterations=5000 \
-    --run=$WANDB_RUN
-python -m scripts.base_eval --device-batch-size=1 --split-tokens=16384 --max-per-task=16
-
-# SFT (~10 minutes on my MacBook Pro M3 Max)
-python -m scripts.chat_sft \
-    --eval-every=200 \
-    --eval-tokens=524288 \
-    --num-iterations=1500 \
-    --run=$WANDB_RUN
-
-# Chat with the model over CLI
-# The model should be able to say that it is Paris.
-# It might even know that the color of the sky is blue.
-# Sometimes the model likes it if you first say Hi before you ask it questions.
-# python -m scripts.chat_cli -p "What is the capital of France?"
+#!/usr/bin/env bash
+# Small CPU/MPS LLWM run. Planning CORE can still be expensive on a laptop.
+set -euo pipefail
+export NANOCHAT_DEVICE="${NANOCHAT_DEVICE:-cpu}"
+export DEPTH="${DEPTH:-4}"
+export MAX_SEQ_LEN="${MAX_SEQ_LEN:-128}"
+export TOTAL_BATCH_SIZE="${TOTAL_BATCH_SIZE:-128}"
+export NUM_ITERATIONS="${NUM_ITERATIONS:-200}"
+export DATA_SHARDS="${DATA_SHARDS:-8}"
+export EVAL_TOKENS="${EVAL_TOKENS:-1024}"
+export EVAL_EVERY="${EVAL_EVERY:-100}"
+export SAMPLE_EVERY="${SAMPLE_EVERY:-100}"
+export CORE_METRIC_EVERY="${CORE_METRIC_EVERY:-200}"
+export PLAN_ITERATIONS="${PLAN_ITERATIONS:-5}"
+export SFT_NUM_ITERATIONS="${SFT_NUM_ITERATIONS:-100}"
+export CHAT_MAX_NEW_TOKENS="${CHAT_MAX_NEW_TOKENS:-32}"
+exec bash "$(dirname -- "${BASH_SOURCE[0]}")/speedrun.sh"

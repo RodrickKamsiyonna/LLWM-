@@ -7,8 +7,8 @@ import json
 import logging
 import torch
 
-from nanochat.common import get_base_dir
-from nanochat.gpt import GPT, GPTConfig
+from nanochat.common import get_base_dir, get_dist_info
+from nanochat.model import config_from_dict, create_model
 from nanochat.tokenizer import get_tokenizer
 from nanochat.common import setup_default_logging
 
@@ -16,7 +16,7 @@ from nanochat.common import setup_default_logging
 setup_default_logging()
 logger = logging.getLogger(__name__)
 def log0(message):
-    if int(os.environ.get('RANK', 0)) == 0:
+    if get_dist_info()[1] == 0:
         logger.info(message)
 
 def _patch_missing_config_keys(model_config_kwargs):
@@ -39,6 +39,9 @@ def _patch_missing_keys(model_data, model_config):
         log0(f"Patching missing x0_lambdas in model data to 0.0")
 
 def save_checkpoint(checkpoint_dir, step, model_data, optimizer_data, meta_data, rank=0):
+    if any(t.device.type == "xla" for t in model_data.values() if isinstance(t, torch.Tensor)):
+        model_data = _cpu_tree(model_data)
+        optimizer_data = _cpu_tree(optimizer_data)
     if rank == 0:
         os.makedirs(checkpoint_dir, exist_ok=True)
         # Save the model state parameters
@@ -60,12 +63,12 @@ def save_checkpoint(checkpoint_dir, step, model_data, optimizer_data, meta_data,
 def load_checkpoint(checkpoint_dir, step, device, load_optimizer=False, rank=0):
     # Load the model state
     model_path = os.path.join(checkpoint_dir, f"model_{step:06d}.pt")
-    model_data = torch.load(model_path, map_location=device)
+    model_data = torch.load(model_path, map_location="cpu" if torch.device(device).type == "xla" else device)
     # Load the optimizer state if requested
     optimizer_data = None
     if load_optimizer:
         optimizer_path = os.path.join(checkpoint_dir, f"optim_{step:06d}_rank{rank:d}.pt")
-        optimizer_data = torch.load(optimizer_path, map_location=device)
+        optimizer_data = torch.load(optimizer_path, map_location="cpu" if torch.device(device).type == "xla" else device)
     # Load the metadata
     meta_path = os.path.join(checkpoint_dir, f"meta_{step:06d}.json")
     with open(meta_path, "r", encoding="utf-8") as f:
@@ -94,14 +97,14 @@ def build_model(checkpoint_dir, step, device, phase):
     model_config_kwargs = meta_data["model_config"]
     _patch_missing_config_keys(model_config_kwargs)
     log0(f"Building model with config: {model_config_kwargs}")
-    model_config = GPTConfig(**model_config_kwargs)
+    model_config = config_from_dict(model_config_kwargs)
     _patch_missing_keys(model_data, model_config)
     with torch.device("meta"):
-        model = GPT(model_config)
+        model = create_model(model_config)
     # Load the model state
     model.to_empty(device=device)
     model.init_weights() # note: this is dumb, but we need to init the rotary embeddings. TODO: fix model re-init
-    model.load_state_dict(model_data, strict=True, assign=True)
+    model.load_state_dict(model_data, strict=True, assign=device.type != "xla")
     # Put the model in the right training phase / mode
     if phase == "eval":
         model.eval()
@@ -122,7 +125,7 @@ def find_largest_model(checkpoints_dir):
     # 1) normally all model tags are of the form d<number>, try that first:
     candidates = []
     for model_tag in model_tags:
-        match = re.match(r"d(\d+)", model_tag)
+        match = re.match(r"(?:llwm_)?d(\d+)$", model_tag)
         if match:
             model_depth = int(match.group(1))
             candidates.append((model_depth, model_tag))
@@ -189,5 +192,15 @@ def load_optimizer_state(source, device, rank, model_tag=None, step=None):
         log0(f"Optimizer checkpoint not found: {optimizer_path}")
         return None
     log0(f"Loading optimizer state from {optimizer_path}")
-    optimizer_data = torch.load(optimizer_path, map_location=device)
+    optimizer_data = torch.load(optimizer_path, map_location="cpu" if torch.device(device).type == "xla" else device)
     return optimizer_data
+
+
+def _cpu_tree(value):
+    if isinstance(value, torch.Tensor):
+        return value.detach().cpu()
+    if isinstance(value, dict):
+        return {k: _cpu_tree(v) for k, v in value.items()}
+    if isinstance(value, (tuple, list)):
+        return type(value)(_cpu_tree(v) for v in value)
+    return value

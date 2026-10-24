@@ -25,13 +25,16 @@ import wandb
 import torch
 import torch.distributed as dist
 
-from nanochat.gpt import GPT, GPTConfig, Linear
+from nanochat.gpt import GPTConfig, Linear
+from nanochat.llwm import LLWMConfig
+from nanochat.model import create_model
 from nanochat.dataloader import tokenizing_distributed_data_loader_bos_bestfit, tokenizing_distributed_data_loader_with_state_bos_bestfit
-from nanochat.common import compute_init, compute_cleanup, print0, DummyWandb, print_banner, get_base_dir, autodetect_device_type, get_peak_flops, COMPUTE_DTYPE, COMPUTE_DTYPE_REASON, is_ddp_initialized
+from nanochat.common import compile_model, synchronize_device, compute_init, compute_cleanup, print0, DummyWandb, print_banner, get_base_dir, autodetect_device_type, get_peak_flops, COMPUTE_DTYPE, COMPUTE_DTYPE_REASON, is_ddp_initialized
 from nanochat.tokenizer import get_tokenizer, get_token_bytes
 from nanochat.checkpoint_manager import save_checkpoint, load_checkpoint
 from nanochat.loss_eval import evaluate_bpb
 from nanochat.engine import Engine
+from nanochat.planning_eval import add_planning_args, planning_for_model, PlanningEngine
 from nanochat.flash_attention import HAS_FA3
 from scripts.base_eval import evaluate_core
 print_banner()
@@ -42,11 +45,20 @@ parser = argparse.ArgumentParser(description="Pretrain base model")
 # Logging
 parser.add_argument("--run", type=str, default="dummy", help="wandb run name ('dummy' disables wandb logging)")
 # Runtime
-parser.add_argument("--device-type", type=str, default="", help="cuda|cpu|mps (empty = autodetect)")
+parser.add_argument("--device-type", type=str, default="", help="cuda|cpu|mps|xla (empty = autodetect)")
 # FP8 training
 parser.add_argument("--fp8", action="store_true", help="enable FP8 training (requires H100+ GPU)")
 parser.add_argument("--fp8-recipe", type=str, default="tensorwise", choices=["rowwise", "tensorwise"], help="FP8 scaling recipe: tensorwise (faster, recommended) or rowwise (more accurate but slower)")
 # Model architecture
+parser.add_argument("--model-type", choices=["llwm", "gpt"], default="llwm", help="architecture for new training runs")
+parser.add_argument("--predictor-layers", type=int, default=None, help="LLWM predictor depth (default: ceil(3 * depth / 4))")
+parser.add_argument("--action-dim", type=int, default=128)
+parser.add_argument("--action-layers", type=int, default=2)
+parser.add_argument("--target-kl", type=float, default=1.0, help="LLWM total action KL budget per valid token, in nats")
+parser.add_argument("--kl-lambda", type=float, default=1.0)
+parser.add_argument("--ce-weight", type=float, default=1.0)
+parser.add_argument("--memory-weight", type=float, default=1.0)
+parser.add_argument("--memory-loss", choices=["smooth_l1", "mse"], default="smooth_l1")
 parser.add_argument("--depth", type=int, default=20, help="depth of the Transformer model")
 parser.add_argument("--aspect-ratio", type=int, default=64, help="model_dim = depth * aspect_ratio")
 parser.add_argument("--head-dim", type=int, default=128, help="target head dimension for attention")
@@ -77,6 +89,7 @@ parser.add_argument("--sample-every", type=int, default=2000, help="sample from 
 parser.add_argument("--save-every", type=int, default=-1, help="save checkpoints every N steps (-1 = only at end)")
 # Output
 parser.add_argument("--model-tag", type=str, default=None, help="override model tag for checkpoint directory name")
+add_planning_args(parser)
 args = parser.parse_args()
 user_config = vars(args).copy()  # for logging
 # -----------------------------------------------------------------------------
@@ -85,7 +98,7 @@ user_config = vars(args).copy()  # for logging
 device_type = autodetect_device_type() if args.device_type == "" else args.device_type
 ddp, ddp_rank, ddp_local_rank, ddp_world_size, device = compute_init(device_type)
 master_process = ddp_rank == 0 # this process will do logging, checkpointing etc.
-synchronize = torch.cuda.synchronize if device_type == "cuda" else lambda: None
+synchronize = lambda: synchronize_device(device_type)
 get_max_memory = torch.cuda.max_memory_allocated if device_type == "cuda" else lambda: 0
 if device_type == "cuda":
     gpu_device_name = torch.cuda.get_device_name(0)
@@ -133,13 +146,18 @@ def build_model_meta(depth):
     base_dim = depth * args.aspect_ratio
     model_dim = ((base_dim + args.head_dim - 1) // args.head_dim) * args.head_dim
     num_heads = model_dim // args.head_dim
-    config = GPTConfig(
+    config_cls = LLWMConfig if args.model_type == "llwm" else GPTConfig
+    extra = dict(predictor_layers=args.predictor_layers, action_dim=args.action_dim,
+                 action_layers=args.action_layers, target_kl=args.target_kl,
+                 kl_lambda=args.kl_lambda, ce_weight=args.ce_weight,
+                 memory_weight=args.memory_weight, memory_loss=args.memory_loss) if args.model_type == "llwm" else {}
+    config = config_cls(
         sequence_len=args.max_seq_len, vocab_size=vocab_size,
         n_layer=depth, n_head=num_heads, n_kv_head=num_heads, n_embd=model_dim,
-        window_pattern=args.window_pattern,
+        window_pattern=args.window_pattern, **extra,
     )
     with torch.device("meta"):
-        model_meta = GPT(config)
+        model_meta = create_model(config)
     return model_meta
 
 # Build the model, move to device, init the weights
@@ -149,16 +167,26 @@ model_config_kwargs = asdict(model_config)
 print0(f"Model config:\n{json.dumps(model_config_kwargs, indent=2)}")
 model.to_empty(device=device) # 2) All tensors get storage on target device but with uninitialized (garbage) data
 model.init_weights() # 3) All tensors get initialized
+if device.type == "xla":
+    import torch_xla.core.xla_model as xm
+    xm.broadcast_master_param(model)
 
 # If we are resuming, overwrite the model parameters with those of the checkpoint
 base_dir = get_base_dir()
-output_dirname = args.model_tag if args.model_tag else f"d{args.depth}" # e.g. d12
+output_dirname = args.model_tag if args.model_tag else (f"llwm_d{args.depth}" if args.model_type == "llwm" else f"d{args.depth}") # e.g. d12
 checkpoint_dir = os.path.join(base_dir, "base_checkpoints", output_dirname)
 resuming = args.resume_from_step != -1
 if resuming:
     print0(f"Resuming optimization from step {args.resume_from_step}")
     model_data, optimizer_data, meta_data = load_checkpoint(checkpoint_dir, args.resume_from_step, device, load_optimizer=True, rank=ddp_rank)
-    model.load_state_dict(model_data, strict=True, assign=True)
+    if meta_data["model_config"] != model_config_kwargs:
+        # Normalize legacy GPT config defaults before comparing.
+        from nanochat.model import config_from_dict
+        from dataclasses import asdict as config_dict
+        saved_config = config_dict(config_from_dict(meta_data["model_config"]))
+        if saved_config != model_config_kwargs:
+            raise ValueError("Resume configuration differs from the checkpoint. Use the saved architecture, depths and objective settings (legacy GPT needs --model-type=gpt).")
+    model.load_state_dict(model_data, strict=True, assign=device.type != "xla")
     del model_data # free up this memory after the copy
 
 # -----------------------------------------------------------------------------
@@ -242,8 +270,9 @@ def disable_fp8(model):
 # -----------------------------------------------------------------------------
 # Compile the model
 
+planning = planning_for_model(model, args)
 orig_model = model # original, uncompiled model, for saving raw model state_dict and for inference/evaluation (because the shapes may change shape)
-model = torch.compile(model, dynamic=False) # the inputs to model will never change shape so dynamic=False is safe
+model = compile_model(model, dynamic=False) # the inputs to model will never change shape so dynamic=False is safe
 
 # -----------------------------------------------------------------------------
 # Scaling laws and muP extrapolations to determine the optimal training horizon, batch size, learning rates, weight decay.
@@ -263,7 +292,8 @@ print0(f"Estimated FLOPs per token: {num_flops_per_token:e}")
 def get_scaling_params(m):
     # As for which params to use exactly, transformer matrices + lm_head gives cleanest scaling laws (see dev/LOG.md Jan 27, 2026)
     params_counts = m.num_scaling_params()
-    scaling_params = params_counts['transformer_matrices'] + params_counts['lm_head']
+    scaling_params = (params_counts['transformer_matrices'] + params_counts['lm_head']
+                      + params_counts.get('action_encoder', 0) + params_counts.get('predictor', 0))
     return scaling_params
 num_scaling_params = get_scaling_params(model)
 target_tokens = int(args.target_param_data_ratio * num_scaling_params) # optimal tokens for the model we are about to train
@@ -442,12 +472,13 @@ while True:
     if args.core_metric_every > 0 and (last_step or (step > 0 and step % args.core_metric_every == 0)):
         model.eval()
         with disable_fp8(orig_model):
-            results = evaluate_core(orig_model, tokenizer, device, max_per_task=args.core_metric_max_per_task)
+            results = evaluate_core(orig_model, tokenizer, device, max_per_task=args.core_metric_max_per_task,
+                                    planning=planning, max_new_tokens=args.eval_max_new_tokens)
         print0(f"Step {step:05d} | CORE metric: {results['core_metric']:.4f}")
         wandb_run.log({
             "step": step,
             "total_training_flops": flops_so_far,
-            "core_metric": results["core_metric"],
+            ("planned_core_metric" if planning is not None else "core_metric"): results["core_metric"],
             "centered_results": results["centered_results"],
         })
         model.train()
@@ -465,11 +496,11 @@ while True:
             "My favorite color is",
             "If 5*x + 3 = 13, then x is",
         ]
-        engine = Engine(orig_model, tokenizer) # use orig_model to avoid recompilation
+        engine = PlanningEngine(orig_model, tokenizer, planning) if planning is not None else Engine(orig_model, tokenizer) # avoid recompilation
         for prompt in prompts:
             tokens = tokenizer(prompt, prepend="<|bos|>")
             with disable_fp8(orig_model):
-                sample, _ = engine.generate_batch(tokens, num_samples=1, max_tokens=16, temperature=0)
+                sample, _ = engine.generate_batch(tokens, num_samples=1, max_tokens=args.eval_max_new_tokens, temperature=0)
             print0(tokenizer.decode(sample[0]))
         model.train()
 
@@ -484,6 +515,10 @@ while True:
                 "step": step,
                 "val_bpb": val_bpb, # loss at last step
                 "model_config": model_config_kwargs,
+                "parameter_counts": param_counts,
+                "num_scaling_params": num_scaling_params,
+                "num_flops_per_token": num_flops_per_token,
+                "core_results": results,
                 "user_config": user_config, # inputs to the training script
                 "device_batch_size": args.device_batch_size,
                 "max_seq_len": args.max_seq_len,
@@ -508,7 +543,8 @@ while True:
     synchronize()
     t0 = time.time()
     for micro_step in range(grad_accum_steps):
-        loss = model(x, y)
+        loss_components = model(x, y, return_loss_components=True) if args.model_type == "llwm" else None
+        loss = loss_components["loss"] if loss_components is not None else model(x, y)
         train_loss = loss.detach() # for logging
         loss = loss / grad_accum_steps # each .backward() is a grad sum => normalize loss here
         if scaler is not None:
@@ -577,6 +613,8 @@ while True:
             "train/mfu": mfu,
             "train/epoch": epoch,
         }
+        if loss_components is not None:
+            log_data.update({f"train/{key}": value.detach().item() for key, value in loss_components.items() if key != "loss"})
         wandb_run.log(log_data)
 
     # state update

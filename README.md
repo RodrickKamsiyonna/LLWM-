@@ -228,3 +228,20 @@ If you find nanochat helpful in your research cite simply as:
 ## License
 
 MIT
+
+### Google TPU
+
+PyTorch/XLA launch commands, setup, checkpoint compatibility and validation limits
+are documented in [TPU.md](TPU.md). Install the `tpu` extra and use
+`python -m scripts.xla_launch scripts.base_train` on a TPU VM.
+
+### Latent language world model
+
+New training runs default to LLWM: compressor, Gaussian action encoder,
+action-conditioned predictor and vocabulary head. Predictor depth defaults to
+`ceil(3 * compressor_depth / 4)`. See [LLWM.md](LLWM.md) for training,
+Gaussian action planning, losses and compatibility. EQM is excluded.
+
+LLWM CORE, ChatCORE and training samples now support Gaussian action planning
+with a fixed period goal and a horizon equal to the output-token budget.
+Start with [runs/README.md](runs/README.md) for TPU launch recipes and settings.

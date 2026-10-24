@@ -12,7 +12,7 @@ dependencies = [
     "pyarrow>=21.0.0",
     "rustbpe>=0.1.0",
     "tiktoken>=0.11.0",
-    "torch==2.9.1",
+    "torch>=2.9.0,<2.10",
     "wandb>=0.21.3",
 ]
 
@@ -37,6 +37,7 @@ python_functions = ["test_*"]
 [tool.uv.sources]
 torch = [
     { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cpu", extra = "tpu" },
     { index = "pytorch-cu128", extra = "gpu" },
 ]
 
@@ -51,6 +52,11 @@ url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
 [project.optional-dependencies]
+tpu = [
+    "torch==2.9.0",
+    "torch_xla[tpu]==2.9.0",
+]
+
 cpu = [
     "setuptools>=65.0.0",
     "torch==2.9.1",
@@ -62,8 +68,7 @@ gpu = [
 [tool.uv]
 default-groups = []
 conflicts = [
-    [
-        { extra = "cpu" },
-        { extra = "gpu" },
-    ],
+    [{ extra = "cpu" }, { extra = "gpu" }],
+    [{ extra = "cpu" }, { extra = "tpu" }],
+    [{ extra = "gpu" }, { extra = "tpu" }],
 ]

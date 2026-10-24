@@ -26,6 +26,7 @@ import random
 import zipfile
 import tempfile
 import argparse
+from dataclasses import asdict
 import torch
 
 from nanochat.common import compute_init, compute_cleanup, print0, get_base_dir, autodetect_device_type, download_file_with_lock
@@ -35,6 +36,7 @@ from nanochat.core_eval import evaluate_task
 from nanochat.dataloader import tokenizing_distributed_data_loader_bos_bestfit
 from nanochat.loss_eval import evaluate_bpb
 from nanochat.engine import Engine
+from nanochat.planning_eval import add_planning_args, planning_for_model, PlanningEngine
 
 # -----------------------------------------------------------------------------
 # CORE evaluation
@@ -54,11 +56,16 @@ def place_eval_bundle(file_path):
     print0(f"Placed eval_bundle directory at {eval_bundle_dir}")
 
 
-def evaluate_core(model, tokenizer, device, max_per_task=-1):
+def evaluate_core(model, tokenizer, device, max_per_task=-1, planning="auto", max_new_tokens=16):
     """
     Evaluate a base model on the CORE benchmark.
     Returns dict with results, centered_results, and core_metric.
     """
+    if planning == "auto":
+        planning = planning_for_model(model)
+    mode = 'plan' if planning is not None else 'prior'
+    print0(f"CORE evaluation mode: {mode}; output budget/horizon: {max_new_tokens}" +
+           (f"; goal: {planning.goal!r}" if planning is not None else ""))
     base_dir = get_base_dir()
     eval_bundle_dir = os.path.join(base_dir, "eval_bundle")
     # Download the eval bundle if needed
@@ -103,10 +110,11 @@ def evaluate_core(model, tokenizer, device, max_per_task=-1):
         # Shuffle for consistent subsampling when using max_per_task
         shuffle_rng = random.Random(1337)
         shuffle_rng.shuffle(data)
+        task_meta['fewshot_pool'] = data
         if max_per_task > 0:
             data = data[:max_per_task]
 
-        accuracy = evaluate_task(model, tokenizer, data, device, task_meta)
+        accuracy = evaluate_task(model, tokenizer, data, device, task_meta, planning, max_new_tokens)
         results[label] = accuracy
         random_baseline = random_baselines[label]
         centered_result = (accuracy - 0.01 * random_baseline) / (1.0 - 0.01 * random_baseline)
@@ -118,7 +126,11 @@ def evaluate_core(model, tokenizer, device, max_per_task=-1):
     out = {
         "results": results,
         "centered_results": centered_results,
-        "core_metric": core_metric
+        "core_metric": core_metric,
+        "eval_mode": mode,
+        "planning_horizon": max_new_tokens if planning is not None else None,
+        "planning_goal": planning.goal if planning is not None else None,
+        "planning_settings": asdict(planning) if planning is not None else None,
     }
     return out
 
@@ -133,7 +145,9 @@ def main():
     parser.add_argument('--max-per-task', type=int, default=-1, help='Max examples per CORE task (-1 = all)')
     parser.add_argument('--device-batch-size', type=int, default=32, help='Per-device batch size for BPB evaluation')
     parser.add_argument('--split-tokens', type=int, default=40*524288, help='Number of tokens to evaluate per split for BPB')
-    parser.add_argument('--device-type', type=str, default='', help='cuda|cpu|mps (empty = autodetect)')
+    parser.add_argument('--device-type', type=str, default='', help='cuda|cpu|mps|xla (empty = autodetect)')
+    add_planning_args(parser)
+    parser.add_argument("--unconditioned-max-new-tokens", type=int, default=128)
     args = parser.parse_args()
 
     # Parse evaluation modes
@@ -148,10 +162,11 @@ def main():
     ddp, ddp_rank, ddp_local_rank, ddp_world_size, device = compute_init(device_type)
     # Load model and tokenizer
     model, tokenizer, meta = load_model("base", device, phase="eval", model_tag=args.model_tag, step=args.step)
+    planning = planning_for_model(model, args)
     sequence_len = meta["model_config"]["sequence_len"]
     token_bytes = get_token_bytes(device=device)
     model_name = f"base_model (step {meta['step']})"
-    model_slug = f"base_model_{meta['step']:06d}"
+    model_slug = f"base_model_{meta['step']:06d}_{'plan' if planning is not None else 'prior'}"
 
     print0(f"Evaluating model: {model_name}")
     print0(f"Eval modes: {', '.join(sorted(eval_modes))}")
@@ -177,11 +192,11 @@ def main():
                 "My favorite color is",
                 "If 5*x + 3 = 13, then x is",
             ]
-            engine = Engine(model, tokenizer)
+            engine = PlanningEngine(model, tokenizer, planning) if planning is not None else Engine(model, tokenizer)
             print0("\nConditioned samples:")
             for prompt in prompts:
                 tokens = tokenizer(prompt, prepend="<|bos|>")
-                sample, _ = engine.generate_batch(tokens, num_samples=1, max_tokens=16, temperature=0)
+                sample, _ = engine.generate_batch(tokens, num_samples=1, max_tokens=args.eval_max_new_tokens, temperature=0)
                 sample_str = tokenizer.decode(sample[0])
                 print0("-" * 80)
                 print0(sample_str)
@@ -189,7 +204,7 @@ def main():
 
             print0("\nUnconditioned samples:")
             tokens = tokenizer("", prepend="<|bos|>")
-            uncond, _ = engine.generate_batch(tokens, num_samples=8, max_tokens=128, temperature=1.0)
+            uncond, _ = engine.generate_batch(tokens, num_samples=8, max_tokens=args.unconditioned_max_new_tokens, temperature=1.0)
             for sample in uncond:
                 sample_str = tokenizer.decode(sample)
                 print0("-" * 80)
@@ -219,7 +234,8 @@ def main():
         print0("\n" + "="*80)
         print0("CORE Evaluation")
         print0("="*80)
-        core_results = evaluate_core(model, tokenizer, device, max_per_task=args.max_per_task)
+        core_results = evaluate_core(model, tokenizer, device, max_per_task=args.max_per_task,
+                                     planning=planning, max_new_tokens=args.eval_max_new_tokens)
 
         # Write CSV output
         if ddp_rank == 0:
@@ -232,7 +248,7 @@ def main():
                     acc = core_results["results"][label]
                     centered = core_results["centered_results"][label]
                     f.write(f"{label:<35}, {acc:<10.6f}, {centered:<10.6f}\n")
-                f.write(f"{'CORE':<35}, {'':<10}, {core_results['core_metric']:<10.6f}\n")
+                f.write(f"{'Planned CORE' if planning is not None else 'CORE':<35}, {'':<10}, {core_results['core_metric']:<10.6f}\n")
             print0(f"\nResults written to: {output_csv_path}")
             print0(f"CORE metric: {core_results['core_metric']:.4f}")
 
