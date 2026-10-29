@@ -201,6 +201,12 @@ def load_optimizer_state(source, device, rank, model_tag=None, step=None):
         "sft": "chatsft_checkpoints",
         "rl": "chatrl_checkpoints",
     }[source]
+    explicit=os.environ.get('NANOCHAT_CHECKPOINT_DIR')
+    if explicit:
+        from nanochat.reliable_checkpoint import read_complete
+        step=find_last_step(explicit) if step is None else step
+        return read_complete(explicit,step,rank,True,load_model=False,
+            cache=os.environ.get('NANOCHAT_CHECKPOINT_CACHE'))[1]
     base_dir = get_base_dir()
     checkpoints_dir = os.path.join(base_dir, model_dir)
     if model_tag is None:
@@ -212,7 +218,7 @@ def load_optimizer_state(source, device, rank, model_tag=None, step=None):
     store=ArtifactStore(checkpoint_dir)
     if store.exists(f'complete_{step:06d}.json'):
         from nanochat.reliable_checkpoint import read_complete
-        return read_complete(checkpoint_dir,step,rank,True,cache=os.environ.get('NANOCHAT_CHECKPOINT_CACHE'))[1]
+        return read_complete(checkpoint_dir,step,rank,True,load_model=False,cache=os.environ.get('NANOCHAT_CHECKPOINT_CACHE'))[1]
     optimizer_path = os.path.join(checkpoint_dir, f"optim_{step:06d}_rank{rank:d}.pt")
     if not os.path.exists(optimizer_path):
         log0(f"Optimizer checkpoint not found: {optimizer_path}")

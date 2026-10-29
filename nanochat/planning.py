@@ -22,6 +22,8 @@ def rollout(model, memory, actions, *, return_consistency=False):
 
 
 def plan(model, prompt, goal, horizon=500, iterations=100, lr=0.05, seed=123, consistency_weight=1., return_logits=False):
+    if not math.isfinite(lr) or lr <= 0:
+        raise ValueError('planning lr must be finite and positive')
     if not math.isfinite(consistency_weight) or consistency_weight < 0:
         raise ValueError('consistency_weight must be finite and nonnegative')
     if goal.ndim != 1 or goal.numel() < 1 or horizon < goal.numel() or iterations < 1:
@@ -35,8 +37,9 @@ def plan(model, prompt, goal, horizon=500, iterations=100, lr=0.05, seed=123, co
         p.requires_grad_(False)
     try:
         with torch.no_grad():
-            states = model.encode(prompt[:, -model.config.sequence_len:])
-            initial = states[:, -1].detach()
+            start=max(0,prompt.size(1)-model.config.sequence_len)
+            states = model.encode(prompt[:, start:])
+            initial = states[:, states.size(1)-1].detach()
         actions = torch.nn.Parameter(sample_actions(initial.size(0), horizon, model.config.action_dim,
                                                     device=initial.device, seed=seed))
         targets = goal[None].expand(initial.size(0), -1)
@@ -49,12 +52,12 @@ def plan(model, prompt, goal, horizon=500, iterations=100, lr=0.05, seed=123, co
                 else:
                     logits = rollout(model, initial, actions)
                     consistency = logits.new_zeros(())
-                goal_ce = F.cross_entropy(logits[:, -goal.numel():].flatten(0, 1), targets.flatten())
+                goal_ce = F.cross_entropy(logits[:, horizon-goal.numel():].flatten(0, 1), targets.flatten())
                 loss = goal_ce + consistency_weight*consistency
             value = float(loss.detach())
             if not math.isfinite(value):
                 raise RuntimeError('non-finite planning objective')
-            exact = logits[:, -goal.numel():].argmax(-1).eq(targets).all(-1).float().mean()
+            exact = logits[:, horizon-goal.numel():].argmax(-1).eq(targets).all(-1).float().mean()
             history.append({'iteration': i, 'loss': value, 'goal_ce': float(goal_ce.detach()), 'inverse_consistency': float(consistency.detach()),
                             'consistency_penalty': float(consistency_weight*consistency.detach()), 'goal_exact_match': float(exact)})
             if value < best_loss:
@@ -69,7 +72,7 @@ def plan(model, prompt, goal, horizon=500, iterations=100, lr=0.05, seed=123, co
         with torch.no_grad():
             logits = rollout(model, initial, best_actions)
             tokens = logits.argmax(-1)
-            suffix = tokens[:, -goal.numel():]
+            suffix = tokens[:, horizon-goal.numel():]
         result = {'tokens': tokens.cpu(), 'goal_tokens': suffix.cpu(), 'goal_exact_match': suffix.eq(targets).all(-1).float().mean().item(),
                 'history': history, 'best_loss': best_loss, 'goal_ce': best_goal_ce,
                 'inverse_consistency': best_consistency, 'consistency_penalty': consistency_weight*best_consistency}

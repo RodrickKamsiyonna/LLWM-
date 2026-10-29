@@ -49,8 +49,12 @@ def canonical_digest(value):
 def inventory(paths, tokenizer_files=()):
     import pyarrow.parquet as pq
     entries=[]
+    from nanochat import diagnostics as diag
+    import time
     for path in paths:
+        start=time.monotonic()
         path=Path(path)
+        diag.event("inventory_file_begin",shard=str(path))
         before=path.stat()
         pf=pq.ParquetFile(path)
         if 'text' not in pf.schema_arrow.names:
@@ -61,6 +65,7 @@ def inventory(paths, tokenizer_files=()):
         digest=sha256_file(path)
         if path.stat().st_size!=before.st_size or path.stat().st_mtime_ns!=before.st_mtime_ns:
             raise RuntimeError(f'Shard changed during inventory: {path}')
+        diag.event('inventory_file_end',shard=str(path),elapsed=time.monotonic()-start,size=before.st_size,sha256=digest)
         entries.append(dict(name=path.name,size=before.st_size,sha256=digest,
                             rows=pf.metadata.num_rows,columns=pf.schema_arrow.names,
                             arrow_schema=str(pf.schema_arrow),row_groups=groups))

@@ -16,10 +16,15 @@ from nanochat.common import COMPUTE_DTYPE
 from functools import wraps
 
 def _compile_kernel(fn):
-    compiled = torch.compile(fn, dynamic=False, fullgraph=True)
+    compiled = None
     @wraps(fn)
     def dispatch(*args, **kwargs):
-        return fn(*args, **kwargs) if args[0].device.type == "xla" else compiled(*args, **kwargs)
+        nonlocal compiled
+        if args[0].device.type == 'xla':
+            return fn(*args, **kwargs)
+        if compiled is None:
+            compiled = torch.compile(fn, dynamic=False, fullgraph=True)
+        return compiled(*args, **kwargs)
     return dispatch
 
 # -----------------------------------------------------------------------------
@@ -282,6 +287,22 @@ class MuonAdamW(torch.optim.Optimizer):
         self._muon_wd_t = torch.tensor(0.0, dtype=torch.float32, device=self._scalar_device)
         self._muon_beta2_t = torch.tensor(0.0, dtype=torch.float32, device=self._scalar_device)
 
+    def _scalar_arguments(self, names, values):
+        if self._scalar_device.type == 'xla':
+            # Transfer a fixed-shape host vector as device data, rather than
+            # embedding Python .fill_ values in a new graph every LR update.
+            key=tuple(values)
+            cache=self._xla_scalar_cache
+            if key not in cache:
+                cache[key]=torch.tensor(values,dtype=torch.float32,device='cpu').to(self._scalar_device).unbind()
+            return cache[key]
+        result=[]
+        for name,value in zip(names,values):
+            tensor=getattr(self,name)
+            tensor.fill_(value)
+            result.append(tensor)
+        return tuple(result)
+
     def _reduce_adamw(self, group: dict, world_size: int) -> dict:
         """Launch async reduce ops for AdamW group. Returns info dict with per-param infos."""
         param_infos = {}
@@ -352,18 +373,10 @@ class MuonAdamW(torch.optim.Optimizer):
                 state['exp_avg_sq'] = torch.zeros_like(p_slice)
             state['step'] += 1
 
-            # Fill 0-D tensors and run fused kernel
-            self._adamw_step_t.fill_(state['step'])
-            self._adamw_lr_t.fill_(group['lr'])
-            self._adamw_beta1_t.fill_(group['betas'][0])
-            self._adamw_beta2_t.fill_(group['betas'][1])
-            self._adamw_eps_t.fill_(group['eps'])
-            self._adamw_wd_t.fill_(group['weight_decay'])
-            adamw_step_fused(
-                p_slice, grad_slice, state['exp_avg'], state['exp_avg_sq'],
-                self._adamw_step_t, self._adamw_lr_t, self._adamw_beta1_t,
-                self._adamw_beta2_t, self._adamw_eps_t, self._adamw_wd_t,
-            )
+            scalars=self._scalar_arguments(
+                ('_adamw_step_t','_adamw_lr_t','_adamw_beta1_t','_adamw_beta2_t','_adamw_eps_t','_adamw_wd_t'),
+                (state['step'],group['lr'],*group['betas'],group['eps'],group['weight_decay']))
+            adamw_step_fused(p_slice,grad_slice,state['exp_avg'],state['exp_avg_sq'],*scalars)
 
             # Large params need all_gather
             if not pinfo['is_small']:
@@ -398,17 +411,12 @@ class MuonAdamW(torch.optim.Optimizer):
             owned_params = [params[start_idx + i] for i in range(num_owned)]
             stacked_owned = torch.stack(owned_params)
 
-            # Fill 0-D tensors and run fused kernel
-            self._muon_momentum_t.fill_(group["momentum"])
-            self._muon_beta2_t.fill_(group["beta2"])
-            self._muon_lr_t.fill_(group["lr"] * max(1.0, shape[-2] / shape[-1])**0.5)
-            self._muon_wd_t.fill_(group["weight_decay"])
-            muon_step_fused(
-                grad_chunk[:num_owned], stacked_owned,
-                state["momentum_buffer"][:num_owned], state["second_momentum_buffer"][:num_owned],
-                self._muon_momentum_t, self._muon_lr_t, self._muon_wd_t, self._muon_beta2_t,
-                group["ns_steps"], red_dim,
-            )
+            scalars=self._scalar_arguments(
+                ('_muon_momentum_t','_muon_lr_t','_muon_wd_t','_muon_beta2_t'),
+                (group['momentum'],group['lr']*max(1.0,shape[-2]/shape[-1])**0.5,group['weight_decay'],group['beta2']))
+            muon_step_fused(grad_chunk[:num_owned],stacked_owned,
+                state['momentum_buffer'][:num_owned],state['second_momentum_buffer'][:num_owned],
+                *scalars,group['ns_steps'],red_dim)
 
         if info['stacked_grads'] is None:
             # Single rank: no gather needed, the updated stack maps directly onto the params
@@ -443,6 +451,11 @@ class MuonAdamW(torch.optim.Optimizer):
 
     @torch.no_grad()
     def step(self):
+        self._xla_scalar_cache={}
+        if self._scalar_device.type=='xla' and __import__('os').environ.get('NANOCHAT_VERIFY_COLLECTIVES')=='1':
+            from nanochat.distributed_utils import require_equal
+            signature=[[(list(p.shape),str(p.dtype),p.grad is not None) for p in group['params']] for group in self.param_groups]
+            require_equal(signature,'optimizer-gradient-layout')
         active_groups = [group for group in self.param_groups if any(p.grad is not None for p in group['params'])]
         for group in active_groups:
             if any(p.grad is None for p in group['params']):
@@ -451,7 +464,9 @@ class MuonAdamW(torch.optim.Optimizer):
             import torch_xla
             import torch_xla.core.xla_model as xm
             # Replicated optimizer: average once after gradient accumulation.
-            xm.reduce_gradients(self)
+            from nanochat.diagnostics import span
+            with span('gradient_average',detail=True):
+                xm.reduce_gradients(self)
             gathers = []
             for group in active_groups:
                 if group['kind'] == 'adamw':
@@ -459,7 +474,10 @@ class MuonAdamW(torch.optim.Optimizer):
                 else:
                     self._compute_muon(group, self._reduce_muon(group, 1), gathers, 0)
             self._finish_gathers(gathers)
-            torch_xla.sync()
+            from nanochat.diagnostics import span
+            with span('optimizer_dispatch',detail=True):
+                torch_xla.sync()
+            self._xla_scalar_cache.clear()
             return
         # On a single rank (no multi-rank process group), all communication is skipped
         if dist.is_available() and dist.is_initialized():

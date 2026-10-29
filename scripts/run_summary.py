@@ -16,12 +16,16 @@ def main():
     args = parser.parse_args()
     base = Path(os.environ.get('NANOCHAT_BASE_DIR', Path.home()/'.cache'/'nanochat'))
     folder = base/'base_checkpoints'/args.model_tag
+    if os.environ.get('RUN_ID') and (folder/os.environ['RUN_ID']).is_dir():
+        folder=folder/os.environ['RUN_ID']
     files = list(folder.glob('meta_*.json'))
     if not files:
         parser.error(f'No checkpoint metadata found in {folder}')
     latest = max(files, key=lambda path: int(path.stem.split('_')[-1]))
     meta = json.loads(latest.read_text())
     config, counts, core = meta['model_config'], meta.get('parameter_counts', {}), meta.get('core_results', {})
+    sidecar=folder/f"evaluation_{meta['step']:06d}.json"
+    if sidecar.exists(): core=json.loads(sidecar.read_text())
     row = dict(label=args.label, model_tag=args.model_tag, depth=config['n_layer'],
                predictor_layers=config.get('predictor_layers', 0), model_dim=config['n_embd'],
                params_total=counts.get('total', ''), params_action_encoder=counts.get('action_encoder', 0),

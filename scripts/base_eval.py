@@ -146,10 +146,13 @@ def main():
     parser.add_argument('--device-batch-size', type=int, default=32, help='Per-device batch size for BPB evaluation')
     parser.add_argument('--split-tokens', type=int, default=40*524288, help='Number of tokens to evaluate per split for BPB')
     parser.add_argument('--device-type', type=str, default='', help='cuda|cpu|mps|xla (empty = autodetect)')
+    parser.add_argument("--checkpoint-dir", help="complete checkpoint run destination, shared path or gs://")
     add_planning_args(parser)
     parser.add_argument("--unconditioned-max-new-tokens", type=int, default=128)
     args = parser.parse_args()
 
+    if args.checkpoint_dir:
+        os.environ["NANOCHAT_CHECKPOINT_DIR"]=args.checkpoint_dir
     # Parse evaluation modes
     eval_modes = set(mode.strip() for mode in args.eval.split(','))
     valid_modes = {'core', 'bpb', 'sample'}

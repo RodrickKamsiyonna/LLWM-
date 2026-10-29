@@ -88,7 +88,7 @@ def _read_file(store,record,cache=None):
         return torch.load(path,map_location='cpu',weights_only=False)
 
 
-def read_complete(root,step,rank=0,load_optimizer=False,expected_world=None,contract=None,cache=None):
+def read_complete(root,step,rank=0,load_optimizer=False,expected_world=None,contract=None,cache=None,load_model=True):
     store=ArtifactStore(root)
     name=f'complete_{step:06d}.json'
     if not store.exists(name): raise ValueError(f'Incomplete or missing checkpoint: {root}/{name}')
@@ -111,7 +111,7 @@ def read_complete(root,step,rank=0,load_optimizer=False,expected_world=None,cont
         if file_record(metadata_path,manifest['metadata']['name'])!=manifest['metadata']:
             raise ValueError('Checkpoint metadata checksum mismatch')
         metadata=json.loads(metadata_path.read_text())
-    model=_read_file(store,manifest['model'],cache)
+    model=_read_file(store,manifest['model'],cache) if load_model else None
     optimizer=runtime=None
     if load_optimizer:
         if not 0<=rank<world: raise ValueError('Rank outside checkpoint topology')
@@ -154,7 +154,11 @@ class TrainingCheckpoints:
         # Already committed checkpoints are immutable; no overwrite on a resumed boundary.
         present=self.store.exists(f'complete_{step:06d}.json')
         require_equal(present,f'checkpoint-existing-{step}')
-        if present: return
+        if present:
+            existing=self.store.get_json(f'complete_{step:06d}.json')
+            if existing['run_id']!=self.run_id or existing['contract']!=self.contract:
+                raise FileExistsError('Checkpoint destination contains another run/contract; choose a unique run-id/destination')
+            return
         attempts=gather_json(uuid.uuid4().hex if self.rank==0 else '',f'checkpoint-attempt-{step}')
         prefix=f'attempts/{step:06d}-{attempts[0]}'
         optimizer_kind='replicated' if self.device.type=='xla' or self.world_size==1 else 'sharded'

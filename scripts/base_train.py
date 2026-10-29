@@ -18,6 +18,9 @@ import json
 import time
 import math
 import argparse
+import socket
+import uuid
+from pathlib import Path
 from dataclasses import asdict
 from contextlib import contextmanager
 
@@ -31,7 +34,11 @@ from nanochat.model import create_model
 from nanochat.dataloader import tokenizing_distributed_data_loader_bos_bestfit, tokenizing_distributed_data_loader_with_state_bos_bestfit
 from nanochat.common import compile_model, synchronize_device, compute_init, compute_cleanup, print0, DummyWandb, print_banner, get_base_dir, autodetect_device_type, get_peak_flops, COMPUTE_DTYPE, COMPUTE_DTYPE_REASON, is_ddp_initialized
 from nanochat.tokenizer import get_tokenizer, get_token_bytes
-from nanochat.checkpoint_manager import save_checkpoint, load_checkpoint
+from nanochat.reliable_checkpoint import TrainingCheckpoints, capture_rng, restore_rng
+from nanochat.data_validation import DataOptions, validate_manifest, validate_ownership, sha256_file
+from nanochat.distributed_utils import require_equal, accumulation_steps
+from nanochat import diagnostics as diag
+from nanochat.common import xla_microstep_boundary
 from nanochat.loss_eval import evaluate_bpb
 from nanochat.engine import Engine
 from nanochat.planning_eval import add_planning_args, planning_for_model, PlanningEngine
@@ -90,7 +97,41 @@ parser.add_argument("--save-every", type=int, default=-1, help="save checkpoints
 # Output
 parser.add_argument("--model-tag", type=str, default=None, help="override model tag for checkpoint directory name")
 add_planning_args(parser)
+parser.add_argument('--run-id', default=os.environ.get('NANOCHAT_RUN_ID', os.environ.get('RUN_ID')))
+parser.add_argument('--log-dir', default=os.environ.get('LOG_DIR', 'logs'))
+parser.add_argument('--debug-diagnostics', action='store_true')
+parser.add_argument('--watchdog-seconds', type=float, default=600)
+parser.add_argument('--expected-world-size', type=int, default=0)
+parser.add_argument('--verify-collectives', action='store_true')
+parser.add_argument('--xla-sync-mode', choices=['step','microstep','microstep-wait'], default='microstep', help='async microstep boundary by default; blocking microstep-wait is diagnostic only')
+parser.add_argument('--xla-metrics-every', type=int, default=25)
+parser.add_argument('--dataset-manifest', help='this host full dataset preflight report')
+parser.add_argument('--tokenizer-threads', type=int, default=4)
+parser.add_argument('--tokenizer-batch-size', type=int, default=128)
+parser.add_argument('--document-buffer-size', type=int, default=1000)
+parser.add_argument('--max-buffer-tokens', type=int, default=4_000_000)
+parser.add_argument('--max-document-chars', type=int, default=1_000_000)
+parser.add_argument('--max-document-tokens', type=int, default=262144)
+parser.add_argument('--max-tokenizer-chars', type=int, default=1_000_000)
+parser.add_argument('--max-row-group-bytes', type=int, default=0)
+parser.add_argument('--long-document-policy', choices=['error','chunk'], default='error')
+parser.add_argument('--packing-policy', choices=['legacy_crop','retain_tail'], default='legacy_crop')
+parser.add_argument('--checkpoint-dir', help='explicit full checkpoint run destination: shared filesystem or gs://')
+parser.add_argument('--checkpoint-shared', action='store_true', help='assert filesystem destination is shared; visibility is verified on every rank')
+parser.add_argument('--checkpoint-cache', help='per-host download cache (one optimizer download per host)')
+parser.add_argument('--checkpoint-keep', type=int, default=3)
+parser.add_argument('--resume-latest', action='store_true')
+parser.add_argument('--stop-after-step', type=int, default=-1, help='qualification cutoff; does NOT change the total schedule or token budget')
+parser.add_argument('--planning-every', type=int, default=-1, help='independent periodic goal planning; -1 disables')
+parser.add_argument('--planning-prompt', default='The capital of France is')
 args = parser.parse_args()
+args.run_id = args.run_id or ('local-' + uuid.uuid4().hex[:12])
+if args.resume_latest and args.resume_from_step >= 0:
+    parser.error('Use resume-latest OR resume-from-step')
+for name in ('eval_every','core_metric_every','sample_every','planning_every','save_every'):
+    value=getattr(args,name)
+    if value != -1 and value <= 0: parser.error(f'{name} must be -1 or positive')
+print0('Effective CLI configuration:\n' + json.dumps(vars(args),sort_keys=True,indent=2))
 user_config = vars(args).copy()  # for logging
 # -----------------------------------------------------------------------------
 # Compute init and wandb logging
@@ -98,6 +139,44 @@ user_config = vars(args).copy()  # for logging
 device_type = autodetect_device_type() if args.device_type == "" else args.device_type
 ddp, ddp_rank, ddp_local_rank, ddp_world_size, device = compute_init(device_type)
 master_process = ddp_rank == 0 # this process will do logging, checkpointing etc.
+expected_world=args.expected_world_size or int(os.environ.get('NANOCHAT_EXPECTED_WORLD_SIZE','0'))
+if expected_world and ddp_world_size!=expected_world:
+    raise ValueError(f'Expected world size {expected_world}, found {ddp_world_size}')
+logs=os.environ.get('NANOCHAT_LAUNCH_LOGS') or str(Path(args.log_dir)/args.run_id/socket.gethostname())
+diag.configure(logs,ddp_rank,ddp_local_rank,args.run_id,
+               args.debug_diagnostics or os.environ.get('NANOCHAT_DEBUG')=='1',args.watchdog_seconds)
+if args.verify_collectives: os.environ['NANOCHAT_VERIFY_COLLECTIVES']='1'
+comparison_config={k:v for k,v in vars(args).items() if k not in ('dataset_manifest','log_dir','checkpoint_cache')}
+require_equal(dict(config=comparison_config,world_size=ddp_world_size),'effective-training-configuration')
+# Validate batch geometry before allocating model storage.
+if args.total_batch_size > 0:
+    accumulation_steps(args.total_batch_size,args.device_batch_size,args.max_seq_len,ddp_world_size)
+data_options=DataOptions(tokenizer_threads=args.tokenizer_threads,tokenizer_batch_size=args.tokenizer_batch_size,
+    buffer_size=args.document_buffer_size,max_buffer_tokens=args.max_buffer_tokens,
+    max_document_chars=args.max_document_chars,max_document_tokens=args.max_document_tokens,
+    max_tokenizer_chars=args.max_tokenizer_chars,long_document_policy=args.long_document_policy,
+    packing_policy=args.packing_policy,max_row_group_bytes=args.max_row_group_bytes)
+dataset_digest=None
+if device.type=='xla' and ddp_world_size>1 and not args.dataset_manifest:
+    raise ValueError('Multi-device TPU training requires --dataset-manifest from a full preflight on each host')
+if args.dataset_manifest:
+    from nanochat.dataset import list_parquet_files
+    manifest=json.loads(Path(args.dataset_manifest).read_text())
+    with diag.span('dataset_manifest_validation'):
+        validate_manifest(manifest,list_parquet_files())
+        validate_ownership(manifest,ddp_world_size)
+        expected_policy=manifest['validation']['options']
+        for name in ('max_document_chars','max_document_tokens','max_tokenizer_chars','long_document_policy','tokenizer_threads','tokenizer_batch_size'):
+            if expected_policy[name]!=getattr(data_options,name):
+                raise ValueError(f'Preflight and training data settings differ: {name}')
+        for item in manifest['tokenizer']:
+            path=Path(get_base_dir())/'tokenizer'/item['name']
+            if sha256_file(path)!=item['sha256']:
+                raise ValueError(f'Tokenizer changed since preflight: {path}')
+        dataset_digest=manifest['digest']
+        require_equal(dataset_digest,'dataset-and-tokenizer-inventory')
+diag.event('effective_config',configuration=vars(args),world_size=ddp_world_size,
+           data_options=data_options.to_dict(),dataset_digest=dataset_digest)
 synchronize = lambda: synchronize_device(device_type)
 get_max_memory = torch.cuda.max_memory_allocated if device_type == "cuda" else lambda: 0
 if device_type == "cuda":
@@ -171,23 +250,12 @@ if device.type == "xla":
     import torch_xla.core.xla_model as xm
     xm.broadcast_master_param(model)
 
-# If we are resuming, overwrite the model parameters with those of the checkpoint
+# New checkpoints use a run-specific destination. Existing checkpoints are untouched.
 base_dir = get_base_dir()
-output_dirname = args.model_tag if args.model_tag else (f"llwm_d{args.depth}" if args.model_type == "llwm" else f"d{args.depth}") # e.g. d12
-checkpoint_dir = os.path.join(base_dir, "base_checkpoints", output_dirname)
-resuming = args.resume_from_step != -1
-if resuming:
-    print0(f"Resuming optimization from step {args.resume_from_step}")
-    model_data, optimizer_data, meta_data = load_checkpoint(checkpoint_dir, args.resume_from_step, device, load_optimizer=True, rank=ddp_rank)
-    if meta_data["model_config"] != model_config_kwargs:
-        # Normalize legacy GPT config defaults before comparing.
-        from nanochat.model import config_from_dict
-        from dataclasses import asdict as config_dict
-        saved_config = config_dict(config_from_dict(meta_data["model_config"]))
-        if saved_config != model_config_kwargs:
-            raise ValueError("Resume configuration differs from the checkpoint. Use the saved architecture, depths and objective settings (legacy GPT needs --model-type=gpt).")
-    model.load_state_dict(model_data, strict=True, assign=device.type != "xla")
-    del model_data # free up this memory after the copy
+output_dirname = args.model_tag if args.model_tag else (f"llwm_d{args.depth}" if args.model_type == "llwm" else f"d{args.depth}")
+checkpoint_dir = args.checkpoint_dir or os.path.join(base_dir,"base_checkpoints",output_dirname,args.run_id)
+resuming = args.resume_latest or args.resume_from_step >= 0
+meta_data = runtime_state = None
 
 # -----------------------------------------------------------------------------
 # FP8 training initialization and management (this has to be done before torch.compile)
@@ -345,22 +413,12 @@ optimizer = model.setup_optimizer(
     weight_decay=weight_decay_scaled,
 )
 
-if resuming:
-    optimizer.load_state_dict(optimizer_data)
-    del optimizer_data
 
 # -----------------------------------------------------------------------------
 # GradScaler for fp16 training (bf16/fp32 don't need it — bf16 has the same exponent range as fp32)
 scaler = torch.amp.GradScaler() if COMPUTE_DTYPE == torch.float16 else None
 if scaler is not None:
     print0("GradScaler enabled for fp16 training")
-
-# -----------------------------------------------------------------------------
-# Initialize the DataLoaders for train/val
-dataloader_resume_state_dict = None if not resuming else meta_data["dataloader_state_dict"]
-train_loader = tokenizing_distributed_data_loader_with_state_bos_bestfit(tokenizer, args.device_batch_size, args.max_seq_len, split="train", device=device, resume_state_dict=dataloader_resume_state_dict)
-build_val_loader = lambda: tokenizing_distributed_data_loader_bos_bestfit(tokenizer, args.device_batch_size, args.max_seq_len, split="val", device=device)
-x, y, dataloader_state_dict = next(train_loader) # kick off load of the very first batch of data
 
 # -----------------------------------------------------------------------------
 # Calculate the number of iterations we will train for and set up the various schedulers
@@ -415,6 +473,36 @@ def get_muon_momentum(it):
 def get_weight_decay(it):
     return weight_decay_scaled * 0.5 * (1 + math.cos(math.pi * it / num_iterations))
 
+# Exact recovery validates the total schedule; stop-after-step only limits this attempt.
+contract=dict(model_config=model_config_kwargs,world_size=ddp_world_size,
+    total_batch_size=total_batch_size,device_batch_size=args.device_batch_size,sequence_len=args.max_seq_len,
+    num_iterations=num_iterations,dtype=str(COMPUTE_DTYPE),dataset_digest=dataset_digest,
+    optimizer={name:getattr(args,name) for name in ('embedding_lr','unembedding_lr','matrix_lr','scalar_lr','weight_decay')},
+    scheduler={name:getattr(args,name) for name in ('warmup_steps','warmdown_ratio','final_lr_frac')})
+cache=args.checkpoint_cache or str(Path('/tmp/llwm-checkpoint-cache')/args.run_id)
+checkpoints=TrainingCheckpoints(checkpoint_dir,args.run_id,ddp_rank,ddp_world_size,device,contract,
+    keep=args.checkpoint_keep,shared=args.checkpoint_shared,cache=cache)
+checkpoints.verify_storage()
+if resuming:
+    resume_step=checkpoints.latest() if args.resume_latest else args.resume_from_step
+    with diag.span('checkpoint_restore',checkpoint_step=resume_step):
+        model_data,optimizer_data,meta_data,runtime_state,_=checkpoints.load(resume_step)
+        orig_model.load_state_dict(model_data,strict=True,assign=False)
+        optimizer.load_state_dict(optimizer_data)
+        del model_data,optimizer_data
+    if meta_data['step']>num_iterations:
+        raise ValueError('Checkpoint is past the configured training budget')
+    if args.stop_after_step>0 and args.stop_after_step<=meta_data['step']:
+        raise ValueError('stop-after-step must be beyond the resumed optimizer step')
+train_loader = tokenizing_distributed_data_loader_with_state_bos_bestfit(
+    tokenizer,args.device_batch_size,args.max_seq_len,split='train',device=device,options=data_options,
+    resume_state_dict=runtime_state['loader'] if runtime_state else None)
+build_val_loader = lambda: tokenizing_distributed_data_loader_bos_bestfit(
+    tokenizer,args.device_batch_size,args.max_seq_len,split='val',device=device,options=data_options)
+x,y,dataloader_state_dict=next(train_loader)
+if runtime_state:
+    restore_rng(runtime_state['rng'],device)
+
 # -----------------------------------------------------------------------------
 # Training loop
 
@@ -437,22 +525,58 @@ else:
 tokens_per_fwdbwd = args.device_batch_size * args.max_seq_len # tokens per iteration for a single rank
 world_tokens_per_fwdbwd = tokens_per_fwdbwd * ddp_world_size # total tokens per iteration for all ranks
 assert total_batch_size % world_tokens_per_fwdbwd == 0, f"total_batch_size ({total_batch_size}) must be a multiple of {world_tokens_per_fwdbwd}."
-grad_accum_steps = total_batch_size // world_tokens_per_fwdbwd
+grad_accum_steps = accumulation_steps(total_batch_size,args.device_batch_size,args.max_seq_len,ddp_world_size)
 print0(f"Tokens / micro-batch / rank: {args.device_batch_size} x {args.max_seq_len} = {tokens_per_fwdbwd:,}")
 print0(f"Tokens / micro-batch: {world_tokens_per_fwdbwd:,}")
 print0(f"Total batch size {total_batch_size:,} => gradient accumulation steps: {grad_accum_steps}")
 
+def save_training_checkpoint():
+    snapshot=(dataloader_state_dict.snapshot() if hasattr(dataloader_state_dict,'snapshot')
+              else train_loader.state_dict(replay_current=True))
+    metadata=dict(step=step,val_bpb=val_bpb,model_config=model_config_kwargs,
+        parameter_counts=param_counts,num_scaling_params=num_scaling_params,num_flops_per_token=num_flops_per_token,
+        core_results=results,user_config=user_config,run_id=args.run_id,
+        device_batch_size=args.device_batch_size,max_seq_len=args.max_seq_len,total_batch_size=total_batch_size,
+        dataloader_state_dict=dict(dataloader_state_dict),
+        loop_state=dict(min_val_bpb=min_val_bpb,smooth_train_loss=smooth_train_loss,total_training_time=total_training_time))
+    with diag.span('checkpoint_save',checkpoint_step=step):
+        checkpoints.save(step,orig_model.state_dict(),optimizer.state_dict(),metadata,
+                         dict(loader=snapshot,rng=capture_rng(device)))
+
+
+@contextmanager
+def evaluation_phase(name):
+    # Preserve training stochastic state independently of optional evaluation.
+    rng=capture_rng(device)
+    try:
+        with diag.span(name):
+            yield
+    finally:
+        restore_rng(rng,device)
+        model.train()
+
+
 # Go!
 while True:
-    last_step = step == num_iterations # loop runs num_iterations+1 times so that we can eval/save at the end
+    last_step = step == num_iterations or (args.stop_after_step>0 and step>=args.stop_after_step)
+    diag.set_context(step=step,microstep=None,**{k:dataloader_state_dict.get(k) for k in ('pq_idx','rg_idx','epoch','batch_number')})
+    diag.event('step_begin',detail=True)
+    results={}
+    validation_due=args.eval_every>0 and (last_step or step%args.eval_every==0)
+    core_due=args.core_metric_every>0 and (last_step or (step>0 and step%args.core_metric_every==0))
+    sample_due=args.sample_every>0 and (last_step or (step>0 and step%args.sample_every==0))
+    planning_due=args.planning_every>0 and (last_step or (step>0 and step%args.planning_every==0))
+    # Commit recovery state BEFORE optional evaluation can fail.
+    if last_step or (step>0 and ((args.save_every>0 and step%args.save_every==0) or validation_due or core_due or sample_due or planning_due)):
+        save_training_checkpoint()
     flops_so_far = num_flops_per_token * total_batch_size * step
 
     # once in a while: evaluate the val bpb (all ranks participate)
-    if args.eval_every > 0 and (last_step or step % args.eval_every == 0):
+    if validation_due:
         model.eval()
         val_loader = build_val_loader()
         eval_steps = args.eval_tokens // (args.device_batch_size * args.max_seq_len * ddp_world_size)
-        with disable_fp8(model):
+        with evaluation_phase('validation'), disable_fp8(model):
             val_bpb = evaluate_bpb(model, val_loader, eval_steps, token_bytes)
         print0(f"Step {step:05d} | Validation bpb: {val_bpb:.6f}")
         if val_bpb < min_val_bpb:
@@ -468,12 +592,13 @@ while True:
     # once in a while: estimate the CORE metric (all ranks participate)
     # use the original uncompiled model because the inputs keep changing shape
     # disable FP8 for evaluation to use BF16 for more consistent/accurate results
-    results = {}
-    if args.core_metric_every > 0 and (last_step or (step > 0 and step % args.core_metric_every == 0)):
+    if core_due:
         model.eval()
-        with disable_fp8(orig_model):
+        with evaluation_phase('core_evaluation'), disable_fp8(orig_model):
             results = evaluate_core(orig_model, tokenizer, device, max_per_task=args.core_metric_max_per_task,
                                     planning=planning, max_new_tokens=args.eval_max_new_tokens)
+        if master_process:
+            checkpoints.store.put_json(f'evaluation_{step:06d}.json',results)
         print0(f"Step {step:05d} | CORE metric: {results['core_metric']:.4f}")
         wandb_run.log({
             "step": step,
@@ -485,7 +610,7 @@ while True:
 
     # once in a while: sample from the model (only on master process)
     # use the original uncompiled model because the inputs keep changing shape
-    if args.sample_every > 0 and master_process and (last_step or (step > 0 and step % args.sample_every == 0)):
+    if sample_due and master_process:
         model.eval()
         prompts = [
             "The capital of France is",
@@ -499,39 +624,18 @@ while True:
         engine = PlanningEngine(orig_model, tokenizer, planning) if planning is not None else Engine(orig_model, tokenizer) # avoid recompilation
         for prompt in prompts:
             tokens = tokenizer(prompt, prepend="<|bos|>")
-            with disable_fp8(orig_model):
+            with evaluation_phase('sample_generation'), disable_fp8(orig_model):
                 sample, _ = engine.generate_batch(tokens, num_samples=1, max_tokens=args.eval_max_new_tokens, temperature=0)
             print0(tokenizer.decode(sample[0]))
         model.train()
 
-    # save checkpoint: at the end of the run, or every save_every steps, except at the first step or the resume step
-    if last_step or (step > 0 and step != args.resume_from_step and args.save_every > 0 and step % args.save_every == 0):
-        save_checkpoint(
-            checkpoint_dir,
-            step,
-            orig_model.state_dict(), # model parameters
-            optimizer.state_dict(), # optimizer state
-            { # metadata saved as json
-                "step": step,
-                "val_bpb": val_bpb, # loss at last step
-                "model_config": model_config_kwargs,
-                "parameter_counts": param_counts,
-                "num_scaling_params": num_scaling_params,
-                "num_flops_per_token": num_flops_per_token,
-                "core_results": results,
-                "user_config": user_config, # inputs to the training script
-                "device_batch_size": args.device_batch_size,
-                "max_seq_len": args.max_seq_len,
-                "total_batch_size": total_batch_size,
-                "dataloader_state_dict": dataloader_state_dict,
-                "loop_state": { # all loop state (other than step) so that we can resume training
-                    "min_val_bpb": min_val_bpb,
-                    "smooth_train_loss": smooth_train_loss,
-                    "total_training_time": total_training_time,
-                },
-            },
-            rank=ddp_rank,
-        )
+    if planning_due and master_process:
+        from nanochat.planning_eval import PlanningOptions, planned_completion
+        options=planning or PlanningOptions(args.plan_goal,args.plan_iterations,args.plan_lr,args.plan_consistency_weight,args.plan_seed)
+        prompt_ids=tokenizer(args.planning_prompt,prepend='<|bos|>')
+        with evaluation_phase('planning_evaluation'):
+            planned=planned_completion(orig_model,tokenizer,prompt_ids,args.eval_max_new_tokens,options)
+            print0('Planning sample: '+tokenizer.decode(planned['tokens'][0].tolist()))
 
     # termination conditions (TODO: possibly also add loss explosions etc.)
     if last_step:
@@ -540,18 +644,22 @@ while True:
     # -------------------------------------------------------------------------
     # single training step
     # evaluate the gradient
-    synchronize()
     t0 = time.time()
     for micro_step in range(grad_accum_steps):
-        loss_components = model(x, y, return_loss_components=True) if args.model_type == "llwm" else None
-        loss = loss_components["loss"] if loss_components is not None else model(x, y)
+        diag.set_context(microstep=micro_step,**{k:dataloader_state_dict.get(k) for k in ('pq_idx','rg_idx','epoch','batch_number')})
+        with diag.span('forward',detail=True):
+            loss_components = model(x,y,return_loss_components=True) if args.model_type=='llwm' else None
+            loss = loss_components['loss'] if loss_components is not None else model(x,y)
         train_loss = loss.detach() # for logging
         loss = loss / grad_accum_steps # each .backward() is a grad sum => normalize loss here
-        if scaler is not None:
-            scaler.scale(loss).backward()
-        else:
-            loss.backward()
-        x, y, dataloader_state_dict = next(train_loader) # prefetch the next batch while the GPU is busy with forward/backward
+        with diag.span('backward',detail=True):
+            if scaler is not None:
+                scaler.scale(loss).backward()
+            else:
+                loss.backward()
+        xla_microstep_boundary(device,args.xla_sync_mode)
+        with diag.span('next_batch',detail=True):
+            x,y,dataloader_state_dict=next(train_loader) # prefetch the next batch while the GPU is busy with forward/backward
     # step the optimizer
     lrm = get_lr_multiplier(step)
     muon_momentum = get_muon_momentum(step)
@@ -569,13 +677,19 @@ while True:
         if is_ddp_initialized():
             for v in scaler._found_inf_per_device(optimizer).values():
                 dist.all_reduce(v, op=dist.ReduceOp.MAX)
-        scaler.step(optimizer)
+        with diag.span("optimizer_update"):
+            scaler.step(optimizer)
         scaler.update()
     else:
-        optimizer.step()
+        with diag.span("optimizer_update"):
+            optimizer.step()
     model.zero_grad(set_to_none=True)
     train_loss_f = train_loss.item() # .item() is a CPU-GPU sync point
-    synchronize()
+    with diag.span('step_synchronize',detail=True):
+        synchronize()
+    if args.xla_metrics_every>0 and (step+1)%args.xla_metrics_every==0:
+        diag.event('xla_metrics',metrics=diag.xla_metrics(device))
+    diag.event('step_complete',completed_step=step+1)
     t1 = time.time()
     dt = t1 - t0
     # -------------------------------------------------------------------------
@@ -618,7 +732,7 @@ while True:
         wandb_run.log(log_data)
 
     # state update
-    first_step_of_run = (step == 0) or (resuming and step == args.resume_from_step)
+    first_step_of_run = (step == 0) or (resuming and step == meta_data["step"])
     step += 1
 
     # The garbage collector is sadly a little bit overactive and for some poorly understood reason,

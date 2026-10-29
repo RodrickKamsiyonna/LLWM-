@@ -360,3 +360,16 @@ def synchronize_device(device_type):
 def compile_model(model, **kwargs):
     # XLA lazy tracing already compiles graphs; Inductor targets CPU/CUDA.
     return model if model.get_device().type == "xla" else torch.compile(model, **kwargs)
+
+
+def xla_microstep_boundary(device,mode='microstep'):
+    """Bound lazy graphs without reducing gradients or changing accumulation.
+
+    Only the explicit diagnostic microstep-wait mode blocks the host. No blanket
+    synchronization is inserted around each individual model operation.
+    """
+    if device.type=='xla' and mode!='step':
+        import torch_xla
+        from nanochat.diagnostics import span
+        with span('microstep_dispatch',detail=True,wait=mode=='microstep-wait'):
+            torch_xla.sync(wait=mode=='microstep-wait')
