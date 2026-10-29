@@ -135,7 +135,7 @@ def download_single_file(index):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Download pretraining dataset shards")
-    parser.add_argument("-n", "--num-files", type=int, default=-1, help="Number of train shards to download (default: -1), -1 = disable")
+    parser.add_argument("-n", "--num-files", type=int, default=-1, help="Number of train shards to download (-1 = all training shards)")
     parser.add_argument("-w", "--num-workers", type=int, default=4, help="Number of parallel download workers (default: 4)")
     args = parser.parse_args()
 
@@ -158,3 +158,5 @@ if __name__ == "__main__":
     # Report results
     successful = sum(1 for success in results if success)
     print(f"Done! Downloaded: {successful}/{len(ids_to_download)} shards to {DATA_DIR}")
+    if successful != len(ids_to_download):
+        raise SystemExit("Dataset download incomplete; do not train with divergent host inventories")
