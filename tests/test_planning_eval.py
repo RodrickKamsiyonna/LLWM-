@@ -211,7 +211,7 @@ def test_v4_16_profile_preserves_original_geometry_and_disabled_evaluations(tmp_
                  '--window-pattern=L','--max-seq-len=1024','--action-layers=4',
                  '--device-batch-size=1','--total-batch-size=131072','--num-iterations=6000',
                  '--eval-every=-1','--core-metric-every=-1','--sample-every=-1','--planning-every=-1',
-                 '--save-every=25','--checkpoint-shared','--expected-world-size=8'):
+                     '--save-every=500','--checkpoint-keep=1','--checkpoint-shared','--expected-world-size=8'):
         assert flag in result.stdout
     assert 'scripts.base_eval' not in result.stdout and 'scripts.chat_sft' not in result.stdout
     assert not list(tmp_path.iterdir())
