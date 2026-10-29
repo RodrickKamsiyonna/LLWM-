@@ -204,3 +204,29 @@ Follow with `--eval=bpb` and `--eval=core` as separate runs; CORE requires its t
 bundle on each host. Short prompts use nonnegative slicing; goal remains `.` and
 planning horizon is the allowed generated-token count. Expensive evaluation can
 compile new shapes; a failure cannot invalidate an earlier complete checkpoint.
+
+## Qualification log (2026-10-29)
+
+- Full preflight of all 171 training shards / 14,132 Parquet row groups passed on
+  both hosts with the same inventory digest
+  (`c6673ab13d725e9472c7ac0903309201615cdccad2f07fad18a0d5c6b1d8f5c0`). The targeted
+  shard-0 row groups 56–71 also passed on both hosts.
+- The 1,299,503,224-parameter LLWM ran on all eight TPU ranks through optimizer
+  step 122 at approximately 32.8k tokens/s after initial compilation. Shared
+  checkpoints 25, 50, 75, and 100 completed. The run was stopped from the shared
+  control channel to apply the requested 500-step checkpoint interval; step 100
+  was retained as the latest complete save.
+- The independent eight-device backend checks passed 300 steps at 16,384 global
+  tokens and 25 steps at 131,072 global tokens, including accumulation, update,
+  replica, and checkpoint round-trip assertions.
+- Restarting after stopping the full-size job exposed a TPU driver ownership
+  problem: opening `/dev/accel0` was rejected because the driver still listed the
+  exited rank PID as owner. Python reported `BrokenProcessPool`; this happened
+  before model training resumed. Worker 0 was rebooted with the user's approval,
+  but SSH has not yet returned, so checkpoint resume and further full-size
+  qualification remain pending.
+- The historical stop at optimizer step 182–183 has **not** been reproduced.
+  Preflight rules out unreadable/malformed Parquet groups in the tested data,
+  but does not establish the cause of the historical stop. Do not treat this
+  reliability work as fully qualified until a clean restart completes at least
+  300 optimizer steps and independent evaluation succeeds.
