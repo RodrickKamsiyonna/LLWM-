@@ -79,6 +79,22 @@ setup_run() {
 launch() {
     local module="$1"
     shift
+    # The sweep recipes use the same startup/storage guards as speedrun.
+    if [[ "$module" == scripts.base_train ]]; then
+        local -a startup_args=(--run-id="$RUN_ID")
+        [[ -z "${DATASET_MANIFEST:-}" ]] || startup_args+=(--dataset-manifest="$DATASET_MANIFEST")
+        [[ "${CHECKPOINT_SHARED:-0}" != 1 ]] || startup_args+=(--checkpoint-shared)
+        if [[ -n "${CHECKPOINT_DIR:-}" ]]; then
+            startup_args+=(--checkpoint-dir="$CHECKPOINT_DIR")
+        elif [[ -n "${CHECKPOINT_ROOT:-}" ]]; then
+            local tag="${MODEL_TAG:-llwm_d$DEPTH}" arg
+            for arg in "$@"; do
+                [[ "$arg" != --model-tag=* ]] || tag="${arg#--model-tag=}"
+            done
+            startup_args+=(--checkpoint-dir="${CHECKPOINT_ROOT%/}/$tag/$RUN_ID")
+        fi
+        set -- "${startup_args[@]}" "$@"
+    fi
     case "$DEVICE_TYPE" in
         xla)
             LAUNCH_ARGS=()

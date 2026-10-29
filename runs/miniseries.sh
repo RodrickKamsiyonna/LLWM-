@@ -17,8 +17,8 @@ for d in "${SERIES_DEPTHS[@]}"; do
         --num-iterations="${NUM_ITERATIONS:--1}" --target-param-data-ratio="${PARAM_DATA_RATIO:-8}" \
         --run="${WANDB_RUN}_${TAG}" --model-tag="$TAG" \
         --eval-every="$EVAL_EVERY" --eval-tokens="$EVAL_TOKENS" \
-        --core-metric-every="${SWEEP_CORE_EVERY:-999999}" --core-metric-max-per-task="$CORE_MAX_PER_TASK" \
-        --sample-every="$SAMPLE_EVERY" --eval-max-new-tokens="$EVAL_MAX_NEW_TOKENS" --save-every=-1
+        --core-metric-every="${SWEEP_CORE_EVERY:-$CORE_METRIC_EVERY}" --core-metric-max-per-task="$CORE_MAX_PER_TASK" \
+        --sample-every="$SAMPLE_EVERY" --eval-max-new-tokens="$EVAL_MAX_NEW_TOKENS" --save-every="${SAVE_EVERY:--1}"
     END_TIME=$(date +%s)
     run_cmd python -m scripts.run_summary --model-tag="$TAG" --label="$SERIES_NAME" \
         --wall-seconds="$((END_TIME - START_TIME))" --results-file="$RESULTS_DIR/results.csv"

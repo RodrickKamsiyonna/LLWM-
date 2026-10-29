@@ -19,8 +19,8 @@ for flops in "${BUDGETS[@]}"; do
             --target-flops="$flops" --target-param-data-ratio=-1 \
             --run="${WANDB_RUN}_${TAG}" --model-tag="$TAG" \
             --eval-every="$EVAL_EVERY" --eval-tokens="$EVAL_TOKENS" \
-            --core-metric-every="${SWEEP_CORE_EVERY:-999999}" --core-metric-max-per-task="$CORE_MAX_PER_TASK" \
-            --sample-every="$SAMPLE_EVERY" --eval-max-new-tokens="$EVAL_MAX_NEW_TOKENS" --save-every=-1
+            --core-metric-every="${SWEEP_CORE_EVERY:-$CORE_METRIC_EVERY}" --core-metric-max-per-task="$CORE_MAX_PER_TASK" \
+            --sample-every="$SAMPLE_EVERY" --eval-max-new-tokens="$EVAL_MAX_NEW_TOKENS" --save-every="${SAVE_EVERY:--1}"
         END_TIME=$(date +%s)
         run_cmd python -m scripts.run_summary --model-tag="$TAG" --label="$LABEL" \
             --flops-budget="$flops" --wall-seconds="$((END_TIME - START_TIME))" --results-file="$RESULTS_DIR/results.csv"
