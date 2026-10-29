@@ -61,6 +61,17 @@ def save_checkpoint(checkpoint_dir, step, model_data, optimizer_data, meta_data,
         logger.info(f"Saved optimizer state to: {optimizer_path}")
 
 def load_checkpoint(checkpoint_dir, step, device, load_optimizer=False, rank=0):
+    from nanochat.storage import ArtifactStore
+    store=ArtifactStore(checkpoint_dir)
+    if store.exists(f'complete_{step:06d}.json'):
+        from nanochat.reliable_checkpoint import read_complete
+        model,optimizer,metadata,_,_=read_complete(checkpoint_dir,step,rank,load_optimizer,
+            cache=os.environ.get('NANOCHAT_CHECKPOINT_CACHE'))
+        if torch.device(device).type not in ('cpu','xla'):
+            model={key:value.to(device) for key,value in model.items()}
+        return model,optimizer,metadata
+    if str(checkpoint_dir).startswith('gs://') or store.list('complete_'):
+        raise ValueError(f'Incomplete or missing checkpoint step {step}')
     # Load the model state
     model_path = os.path.join(checkpoint_dir, f"model_{step:06d}.pt")
     model_data = torch.load(model_path, map_location="cpu" if torch.device(device).type == "xla" else device)
@@ -138,6 +149,12 @@ def find_largest_model(checkpoints_dir):
 
 
 def find_last_step(checkpoint_dir):
+    from nanochat.reliable_checkpoint import complete_steps
+    steps=complete_steps(checkpoint_dir)
+    if steps:
+        return steps[-1]
+    if str(checkpoint_dir).startswith('gs://'):
+        raise FileNotFoundError('No complete checkpoint manifests')
     # Look into checkpoint_dir and find model_<step>.pt with the highest step
     checkpoint_files = [f for f in os.listdir(checkpoint_dir) if re.search(r'model_(\d+)\.pt$', f)]
     if not checkpoint_files:
@@ -149,6 +166,10 @@ def find_last_step(checkpoint_dir):
 # convenience functions that take into account nanochat's directory structure
 
 def load_model_from_dir(checkpoints_dir, device, phase, model_tag=None, step=None):
+    explicit=os.environ.get('NANOCHAT_CHECKPOINT_DIR')
+    if explicit:
+        step=find_last_step(explicit) if step is None else step
+        return build_model(explicit,step,device,phase)
     if model_tag is None:
         # guess the model tag by defaulting to the largest model
         model_tag = find_largest_model(checkpoints_dir)
@@ -187,6 +208,11 @@ def load_optimizer_state(source, device, rank, model_tag=None, step=None):
     checkpoint_dir = os.path.join(checkpoints_dir, model_tag)
     if step is None:
         step = find_last_step(checkpoint_dir)
+    from nanochat.storage import ArtifactStore
+    store=ArtifactStore(checkpoint_dir)
+    if store.exists(f'complete_{step:06d}.json'):
+        from nanochat.reliable_checkpoint import read_complete
+        return read_complete(checkpoint_dir,step,rank,True,cache=os.environ.get('NANOCHAT_CHECKPOINT_CACHE'))[1]
     optimizer_path = os.path.join(checkpoint_dir, f"optim_{step:06d}_rank{rank:d}.pt")
     if not os.path.exists(optimizer_path):
         log0(f"Optimizer checkpoint not found: {optimizer_path}")
