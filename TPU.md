@@ -1,5 +1,11 @@
 # TPU training and inference (PyTorch/XLA)
 
+For the two-host v4-16 reliability work, use the explicit server-storage setup,
+preflight, launch, stop and resume commands in
+[the reliability runbook](docs/TPU_RELIABILITY.md). The original 1.3B-model
+qualification is still in progress; the older smoke examples below do not
+establish multi-host reliability.
+
 This backend uses PJRT replicated data parallelism, one model and optimizer replica
 per XLA device. It covers base pretraining, SFT, RL, loss/CORE/chat evaluation,
 checkpoint resume, CLI chat, and inference benchmarking. Tokenizer training and
@@ -44,8 +50,12 @@ python -m scripts.xla_launch --single-process scripts.base_train \
 For replicated training across all local TPU devices:
 
 ```bash
-python -m scripts.xla_launch scripts.base_train \
-  --device-type=xla --depth=12 --device-batch-size=2 --run=dummy
+python -m scripts.dataset_preflight --world-size=8 --output=dataset-manifest.json
+python -m scripts.xla_launch --run-id=example --control-dir=/shared/llwm/control \
+  --expected-world-size=8 scripts.base_train \
+  --device-type=xla --depth=12 --device-batch-size=2 --run=dummy \
+  --run-id=example --dataset-manifest=dataset-manifest.json \
+  --checkpoint-dir=/shared/llwm/example --checkpoint-shared
 ```
 
 Global token batch size must be divisible by

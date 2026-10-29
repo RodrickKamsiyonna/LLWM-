@@ -103,3 +103,30 @@ def test_invalid_text_and_long_documents_are_explicit_errors():
 def test_no_rows_for_rank_is_rejected_not_infinite_loop(tmp_path):
     path=tmp_path/'one.parquet';pq.write_table(pa.table({'text':['one']}),path)
     with pytest.raises(ValueError,match='no rows'):ParquetTextStream([path],7,8,2,options())
+
+
+def test_default_packing_matches_original_best_fit(shards):
+    # Independent original algorithm: batch-granularity refill, first largest
+    # fitting document, otherwise crop the shortest. Compare actual token rows.
+    tokenizer=Tokenizer()
+    config=options()
+    source=ParquetTextStream(shards[:-1],0,8,config.tokenizer_batch_size,config)
+    pool=[]
+    loader=PackedDataLoader(tokenizer,2,32,'train',paths=shards,options=config,rank=0,world_size=8)
+    for _ in range(100):
+        rows=[]
+        for row in range(2):
+            packed=[]
+            while len(packed)<33:
+                while len(pool)<config.buffer_size:
+                    texts,_=next(source)
+                    pool.extend(tokenizer.encode(texts,prepend=0,num_threads=4))
+                remaining=33-len(packed)
+                fitting=[i for i,doc in enumerate(pool) if len(doc)<=remaining]
+                index=max(fitting,key=lambda i:len(pool[i])) if fitting else min(range(len(pool)),key=lambda i:len(pool[i]))
+                packed.extend(pool.pop(index)[:remaining])
+            rows.append(packed)
+        expected=torch.tensor(rows)
+        x,y,_=next(loader)
+        torch.testing.assert_close(x,expected[:,:-1])
+        torch.testing.assert_close(y,expected[:,1:])

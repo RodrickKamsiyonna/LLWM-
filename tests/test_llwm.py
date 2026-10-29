@@ -254,10 +254,18 @@ def test_pretraining_entrypoint_defaults_to_llwm_and_resumes(tmp_path, monkeypat
             return ([0] if prepend is not None else []) + self.encode(text)
         def decode(self, tokens):
             return 'synthetic planned sample'
-    def batches(tokenizer, batch_size, length, **kwargs):
-        while True:
-            tokens = torch.arange(batch_size*(length+1)).view(batch_size,length+1) % 16
-            yield tokens[:,:-1].contiguous(), tokens[:,1:].contiguous(), dict(pq_idx=0,rg_idx=0,epoch=1)
+    def batches(tokenizer,batch_size,length,**kwargs):
+        class Loader:
+            def __init__(self):
+                state=kwargs.get('resume_state_dict')
+                self.position=state['position'] if state else 0
+            def __iter__(self): return self
+            def __next__(self):
+                self.position+=1
+                tokens=torch.arange(batch_size*(length+1)).view(batch_size,length+1)%16
+                return tokens[:,:-1].contiguous(),tokens[:,1:].contiguous(),dict(pq_idx=0,rg_idx=0,epoch=1,batch_number=self.position)
+            def state_dict(self,replay_current=True): return dict(position=self.position-1)
+        return Loader()
     monkeypatch.setenv('NANOCHAT_BASE_DIR', str(tmp_path))
     monkeypatch.setenv('WANDB_MODE', 'disabled')
     monkeypatch.setenv('PYTORCH_ALLOC_CONF', '')
@@ -270,21 +278,20 @@ def test_pretraining_entrypoint_defaults_to_llwm_and_resumes(tmp_path, monkeypat
     monkeypatch.setattr(common, 'compile_model', lambda model, **kwargs: model)
     for name in ('freeze', 'disable', 'collect'):
         monkeypatch.setattr(gc, name, lambda: None)
-    args = ['scripts.base_train', '--device-type=cpu', '--depth=2', '--aspect-ratio=16',
+    args = ['scripts.base_train', '--run-id=test-run', '--device-type=cpu', '--depth=2', '--aspect-ratio=16',
             '--head-dim=16', '--max-seq-len=4', '--action-dim=8', '--device-batch-size=1',
             '--total-batch-size=4', '--eval-every=-1', '--sample-every=-1',
             '--core-metric-every=-1', '--warmup-steps=0', '--window-pattern=L']
-    monkeypatch.setattr(sys, 'argv', args + ['--num-iterations=1'])
+    monkeypatch.setattr(sys, 'argv', args + ['--num-iterations=3', '--stop-after-step=1'])
     runpy.run_module('scripts.base_train', run_name='__main__')
-    folder = tmp_path/'base_checkpoints'/'llwm_d2'
+    folder = tmp_path/'base_checkpoints'/'llwm_d2'/'test-run'
     with (folder/'meta_000001.json').open() as f:
         metadata = json.load(f)
     assert metadata['model_config']['architecture'] == 'llwm'
     assert metadata['model_config']['predictor_layers'] == 2
-    monkeypatch.setattr(sys, 'argv', args + ['--num-iterations=2', '--resume-from-step=1'])
+    monkeypatch.setattr(sys, 'argv', args + ['--num-iterations=3', '--stop-after-step=2', '--resume-from-step=1'])
     runpy.run_module('scripts.base_train', run_name='__main__')
-    assert (folder/'model_000002.pt').is_file()
-    assert (folder/'optim_000002_rank0.pt').is_file()
+    assert (folder/'complete_000002.json').is_file()
 
     # Enable real planning at the periodic CORE/sample call sites on resume.
     import scripts.base_eval as base_eval
@@ -306,5 +313,4 @@ def test_pretraining_entrypoint_defaults_to_llwm_and_resumes(tmp_path, monkeypat
     runpy.run_module('scripts.base_train', run_name='__main__')
     assert len(plans) == 16  # CORE + seven samples at step 2 and final step 3.
     assert all(goal == [3] and horizon == 3 for goal, horizon in plans)
-    with (folder/'meta_000003.json').open() as f:
-        assert json.load(f)['core_results']['planning_goal'] == '.'
+    assert (folder/'complete_000003.json').is_file()

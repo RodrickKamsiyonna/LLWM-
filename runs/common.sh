@@ -6,10 +6,12 @@ export OMP_NUM_THREADS="${OMP_NUM_THREADS:-1}"
 export NANOCHAT_BASE_DIR="${NANOCHAT_BASE_DIR:-$HOME/.cache/nanochat}"
 NANOCHAT_DEVICE="${NANOCHAT_DEVICE:-tpu}"
 WANDB_RUN="${WANDB_RUN:-dummy}"
+export RUN_ID="${RUN_ID:-llwm-$(date -u +%Y%m%dT%H%M%SZ)}"
 NPROC_PER_NODE="${NPROC_PER_NODE:-8}"
 DEPTH="${DEPTH:-12}"
 MAX_SEQ_LEN="${MAX_SEQ_LEN:-512}"
 HEAD_DIM="${HEAD_DIM:-64}"
+ASPECT_RATIO="${ASPECT_RATIO:-64}"
 DEVICE_BATCH_SIZE="${DEVICE_BATCH_SIZE:-1}"
 TOTAL_BATCH_SIZE="${TOTAL_BATCH_SIZE:-32768}"
 EVAL_MAX_NEW_TOKENS="${EVAL_MAX_NEW_TOKENS:-16}"
@@ -48,7 +50,7 @@ run_cmd() {
 setup_run() {
     case "$NANOCHAT_DEVICE" in
         tpu|xla) DEVICE_TYPE=xla; INSTALL_EXTRA=tpu ;;
-        cuda|gpu) DEVICE_TYPE=cuda; INSTALL_EXTRA=gpu ;;
+        cuda|gpu) DEVICE_TYPE=cuda; INSTALL_EXTRA=gpu; CHECKPOINT_SHARED="${CHECKPOINT_SHARED:-1}" ;;
         cpu|mps) DEVICE_TYPE="$NANOCHAT_DEVICE"; INSTALL_EXTRA=cpu ;;
         *) echo "NANOCHAT_DEVICE must be tpu, cuda, cpu or mps" >&2; return 1 ;;
     esac
@@ -64,7 +66,11 @@ setup_run() {
         fi
         command -v uv >/dev/null 2>&1 || { echo "Install uv and put it on PATH" >&2; return 1; }
         [[ -d .venv ]] || uv venv --python "${PYTHON_VERSION:-3.12}"
-        uv sync --extra "$INSTALL_EXTRA"
+        INSTALL_ARGS=(--extra "$INSTALL_EXTRA")
+        if [[ "${CHECKPOINT_DIR:-}${CONTROL_DIR:-}" == *gs://* ]]; then
+            INSTALL_ARGS+=(--extra cloud)
+        fi
+        uv sync --python "${PYTHON_VERSION:-3.12}" "${INSTALL_ARGS[@]}"
     fi
     [[ -f .venv/bin/activate ]] || { echo "Missing .venv; unset SKIP_SETUP to install dependencies" >&2; return 1; }
     source .venv/bin/activate
@@ -74,7 +80,17 @@ launch() {
     local module="$1"
     shift
     case "$DEVICE_TYPE" in
-        xla) run_cmd python -m scripts.xla_launch "$module" --device-type=xla "$@" ;;
+        xla)
+            LAUNCH_ARGS=()
+            [[ -z "${RUN_ID:-}" ]] || LAUNCH_ARGS+=(--run-id="$RUN_ID")
+            [[ -z "${ATTEMPT_ID:-}" ]] || LAUNCH_ARGS+=(--launch-id="$ATTEMPT_ID")
+            [[ -z "${CONTROL_DIR:-}" ]] || LAUNCH_ARGS+=(--control-dir="$CONTROL_DIR")
+            [[ -z "${LOG_DIR:-}" ]] || LAUNCH_ARGS+=(--log-dir="$LOG_DIR")
+            [[ -z "${EXPECTED_WORLD_SIZE:-}" ]] || LAUNCH_ARGS+=(--expected-world-size="$EXPECTED_WORLD_SIZE")
+            [[ -z "${EXPECTED_LOCAL_DEVICES:-}" ]] || LAUNCH_ARGS+=(--expected-local-devices="$EXPECTED_LOCAL_DEVICES")
+            [[ "${DEBUG_DIAGNOSTICS:-0}" != 1 ]] || LAUNCH_ARGS+=(--debug)
+            run_cmd python -m scripts.xla_launch "${LAUNCH_ARGS[@]}" "$module" --device-type=xla "$@"
+            ;;
         cuda) run_cmd torchrun --standalone --nproc_per_node="$NPROC_PER_NODE" -m "$module" --device-type=cuda "$@" ;;
         *) run_cmd python -m "$module" --device-type="$DEVICE_TYPE" "$@" ;;
     esac

@@ -180,7 +180,7 @@ def test_run_recipes_preview_without_training(tmp_path,script):
     if script=='runcpu.sh':
         assert '--device-type=cpu' in result.stdout and 'torchrun' not in result.stdout
     else:
-        assert 'scripts.xla_launch scripts.base_train' in result.stdout
+        assert 'scripts.xla_launch ' in result.stdout and ' scripts.base_train ' in result.stdout
     assert not list(tmp_path.iterdir())
 
 
@@ -199,3 +199,19 @@ def test_sweep_summary_uses_actual_checkpoint_batch_and_planning_metadata(tmp_pa
     with output.open() as f:
         row=next(csv.DictReader(f))
     assert row['tokens_trained']=='320' and row['core_mode']=='plan' and row['planning_horizon']=='7'
+
+
+def test_v4_16_profile_preserves_original_geometry_and_disabled_evaluations(tmp_path):
+    root=Path(__file__).resolve().parents[1]
+    env=dict(os.environ,DRY_RUN='1',RUN_ID='qualification',CHECKPOINT_ROOT=str(tmp_path/'shared'),
+             DATASET_MANIFEST=str(tmp_path/'manifest.json'),EVAL_EVERY='-1',CORE_METRIC_EVERY='-1',
+             SAMPLE_EVERY='-1',PLANNING_EVERY='-1')
+    result=subprocess.run(['bash',str(root/'runs/tpu_v4_16.sh')],env=env,capture_output=True,text=True,check=True)
+    for flag in ('--depth=15','--predictor-layers=11','--aspect-ratio=110','--head-dim=128',
+                 '--window-pattern=L','--max-seq-len=1024','--action-layers=4',
+                 '--device-batch-size=1','--total-batch-size=131072','--num-iterations=6000',
+                 '--eval-every=-1','--core-metric-every=-1','--sample-every=-1','--planning-every=-1',
+                 '--save-every=25','--checkpoint-shared','--expected-world-size=8'):
+        assert flag in result.stdout
+    assert 'scripts.base_eval' not in result.stdout and 'scripts.chat_sft' not in result.stdout
+    assert not list(tmp_path.iterdir())

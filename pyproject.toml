@@ -52,6 +52,7 @@ url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
 [project.optional-dependencies]
+cloud = ["google-cloud-storage>=2.18,<4"]
 tpu = [
     "torch==2.9.0",
     "torch_xla[tpu]==2.9.0",
