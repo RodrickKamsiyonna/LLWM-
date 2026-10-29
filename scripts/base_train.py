@@ -119,7 +119,7 @@ parser.add_argument('--packing-policy', choices=['legacy_crop','retain_tail'], d
 parser.add_argument('--checkpoint-dir', help='explicit full checkpoint run destination: shared filesystem or gs://')
 parser.add_argument('--checkpoint-shared', action='store_true', help='assert filesystem destination is shared; visibility is verified on every rank')
 parser.add_argument('--checkpoint-cache', help='per-host download cache (one optimizer download per host)')
-parser.add_argument('--checkpoint-keep', type=int, default=3)
+parser.add_argument('--checkpoint-keep', type=int, default=1)
 parser.add_argument('--resume-latest', action='store_true')
 parser.add_argument('--stop-after-step', type=int, default=-1, help='qualification cutoff; does NOT change the total schedule or token budget')
 parser.add_argument('--planning-every', type=int, default=-1, help='independent periodic goal planning; -1 disables')

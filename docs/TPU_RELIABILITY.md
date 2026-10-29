@@ -31,7 +31,7 @@ available for checkpoint/control operations. Do not delete/recreate that VM unti
 checkpoints have been copied elsewhere. A hard NFS mount can block on server
 failure; local rank fault logs remain available, and the verified local PID-file
 stop command below can stop the intended launcher independently of shared control.
-Keep free disk for three approximately 10 GB complete checkpoints, temporary save
+Keep free disk for one approximately 10 GB complete checkpoint, temporary save
 files and the per-host restore cache. Incomplete attempts are retained as evidence
 and are not counted as usable checkpoints.
 
@@ -159,7 +159,7 @@ The replicated XLA model/optimizer are saved once, alongside every rank's exact
 buffered loader state, prefetched batch, RNG and loop/scheduler state. SHA256 and
 size checks reject corrupt/incomplete files. CUDA optimizer shards remain sharded.
 Old approximate loader checkpoints cannot provide exact recovery; legacy weight
-loading remains available. Retention protects the latest two complete checkpoints
+loading remains available. Retention defaults to the latest complete checkpoint
 and never deletes legacy files or another run's artifacts.
 
 ## Required real hardware tests

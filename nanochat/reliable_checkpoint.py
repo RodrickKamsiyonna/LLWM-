@@ -124,8 +124,8 @@ def read_complete(root,step,rank=0,load_optimizer=False,expected_world=None,cont
 
 
 class TrainingCheckpoints:
-    def __init__(self,root,run_id,rank,world_size,device,contract,keep=3,shared=False,cache=None):
-        if keep and keep<2: raise ValueError('Retention must preserve at least two complete checkpoints (or 0 for unlimited)')
+    def __init__(self,root,run_id,rank,world_size,device,contract,keep=1,shared=False,cache=None):
+        if keep and keep<1: raise ValueError('Checkpoint retention must be positive (or 0 for unlimited)')
         self.store=ArtifactStore(root)
         self.root,self.run_id,self.rank,self.world_size=str(root),run_id,rank,world_size
         self.device,self.contract,self.keep,self.cache=device,contract,keep,cache
@@ -214,13 +214,14 @@ class TrainingCheckpoints:
 
     def prune(self):
         steps=complete_steps(self.root)
-        # Only this protocol/run's old completed checkpoints are eligible. Legacy
-        # files and incomplete attempts are never deleted by retention.
+        # Only this protocol/run's old completed checkpoints are eligible. Keep
+        # the previous completed save until the newest save has its manifest;
+        # legacy files and incomplete attempts are never deleted by retention.
         for step in steps[:-self.keep]:
             name=f'complete_{step:06d}.json'; manifest=self.store.get_json(name)
             if manifest['run_id']!=self.run_id: continue
             records=[manifest['model'],manifest['metadata'],*manifest['runtime'].values(),*manifest['optimizer'].values()]
-            # Remove eligibility first; latest two known-good checkpoints remain.
+            # Remove eligibility first, only after the new completion manifest exists.
             self.store.delete(name)
             for record in records: self.store.delete(record['name'])
             if self.store.exists(f'meta_{step:06d}.json'): self.store.delete(f'meta_{step:06d}.json')

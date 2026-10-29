@@ -8,7 +8,7 @@ from nanochat.reliable_checkpoint import TrainingCheckpoints,read_complete,captu
 from nanochat.distributed_utils import accumulation_steps
 
 
-def manager(path,contract=None,keep=3):
+def manager(path,contract=None,keep=1):
     return TrainingCheckpoints(path,'test',0,1,torch.device('cpu'),contract or {'schedule':6000},keep=keep)
 
 
@@ -49,11 +49,11 @@ def test_incomplete_mismatched_and_corrupt_checkpoints_are_rejected(tmp_path):
     with pytest.raises(ValueError,match='checksum'):read_complete(tmp_path,25)
 
 
-def test_retention_only_prunes_new_protocol_and_keeps_last_good(tmp_path):
+def test_retention_keeps_only_latest_complete_and_preserves_legacy_files(tmp_path):
     legacy=tmp_path/'model_000001.pt';legacy.write_bytes(b'legacy preserved')
-    checkpoint=manager(tmp_path,keep=2)
+    checkpoint=manager(tmp_path,keep=1)
     for step in (25,50,75):checkpoint.save(step,{'p':torch.ones(2)},{'state':{}},{'step':step},{'loader':{}})
-    assert complete_steps(tmp_path)==[50,75]
+    assert complete_steps(tmp_path)==[75]
     assert checkpoint.latest()==75 and legacy.read_bytes()==b'legacy preserved'
 
 
@@ -66,3 +66,15 @@ def test_no_completion_manifest_if_an_artifact_write_fails(tmp_path,monkeypatch)
     monkeypatch.setattr(checkpoint.store,'put_file',fail)
     with pytest.raises(RuntimeError,match='transaction'):checkpoint.save(25,{'p':torch.ones(2)},{'state':{}},{'step':25},{})
     assert complete_steps(tmp_path)==[]
+
+
+def test_failed_new_checkpoint_preserves_previous_latest(tmp_path,monkeypatch):
+    checkpoint=manager(tmp_path)
+    checkpoint.save(25,{'p':torch.ones(2)},{'state':{}},{'step':25},{})
+    original=checkpoint.store.put_file
+    def fail(name,source,exclusive=False):
+        if 'optim_' in name:raise OSError('injected storage failure')
+        return original(name,source,exclusive)
+    monkeypatch.setattr(checkpoint.store,'put_file',fail)
+    with pytest.raises(RuntimeError,match='transaction'):checkpoint.save(50,{'p':torch.zeros(2)},{'state':{}},{'step':50},{})
+    assert complete_steps(tmp_path)==[25]

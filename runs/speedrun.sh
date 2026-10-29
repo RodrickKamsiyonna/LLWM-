@@ -13,7 +13,7 @@ RELIABILITY_ARGS=(--xla-sync-mode="${XLA_SYNC_MODE:-microstep}" --xla-metrics-ev
     --document-buffer-size="${DOCUMENT_BUFFER_SIZE:-1000}" --max-buffer-tokens="${MAX_BUFFER_TOKENS:-4000000}"
     --max-document-chars="${MAX_DOCUMENT_CHARS:-1000000}" --max-document-tokens="${MAX_DOCUMENT_TOKENS:-262144}"
     --max-tokenizer-chars="${MAX_TOKENIZER_CHARS:-1000000}" --long-document-policy="${LONG_DOCUMENT_POLICY:-error}"
-    --packing-policy="${PACKING_POLICY:-legacy_crop}" --checkpoint-keep="${CHECKPOINT_KEEP:-3}"
+    --packing-policy="${PACKING_POLICY:-legacy_crop}" --checkpoint-keep="${CHECKPOINT_KEEP:-1}"
     --planning-every="${PLANNING_EVERY:--1}" --stop-after-step="${STOP_AFTER_STEP:--1}")
 [[ -z "${DATASET_MANIFEST:-}" ]] || RELIABILITY_ARGS+=(--dataset-manifest="$DATASET_MANIFEST")
 [[ -z "${RUN_ID:-}" ]] || RELIABILITY_ARGS+=(--run-id="$RUN_ID")
