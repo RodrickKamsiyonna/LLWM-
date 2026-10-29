@@ -52,6 +52,8 @@ def main():
     reference_optimizer=torch.optim.AdamW([reference],lr=0.01,betas=(0.8,0.95),eps=1e-8,weight_decay=0.1,foreach=False)
     pattern=(torch.arange(128,dtype=torch.float32).reshape(8,16)+1)/128
     pattern_device=pattern.to(device)
+    vector_pattern=torch.arange(1,9,dtype=torch.float32)/8
+    vector_device=vector_pattern.to(device)
     average=(world+1)/2
     expected_momentum=torch.zeros(1,8,16)
     expected_first=torch.zeros(8)
@@ -75,19 +77,20 @@ def main():
             # Real stable-size input tensors on every microstep; each rank has
             # a different known gradient before the single replicated average.
             data=torch.full((1,1024),float(rank+1),dtype=torch.float32).to(device)
-            loss=(a.sum()+(matrix*pattern_device).sum())*data.mean()/accumulation
+            loss=((a*vector_device).sum()+(matrix*pattern_device).sum())*data.mean()/accumulation
             loss.backward()
             xla_microstep_boundary(device,args.sync_mode)
         optimizer.step()
         optimizer.zero_grad(set_to_none=True)
         torch_xla.sync(wait=True)
-        reference.grad=torch.full_like(reference,average)
+        reference.grad=average*vector_pattern
         reference_optimizer.step();reference_optimizer.zero_grad(set_to_none=True)
-        expected_first=0.8*expected_first+0.2*average
+        expected_first=0.8*expected_first+0.2*average*vector_pattern
         expected_momentum=0.95*expected_momentum+0.05*average*pattern.unsqueeze(0)
         if step==1 or step%25==0 or step==args.steps:
             torch.testing.assert_close(a.cpu(),reference.detach(),atol=2e-5,rtol=2e-5)
-            torch.testing.assert_close(optimizer.state[a]['exp_avg'].cpu(),expected_first,atol=2e-5,rtol=2e-5)
+            actual_first=optimizer.state[a]['exp_avg'].cpu()
+            torch.testing.assert_close(actual_first,expected_first,atol=2e-5,rtol=2e-5)
             torch.testing.assert_close(optimizer.state[matrix]['momentum_buffer'].cpu(),expected_momentum,atol=2e-5,rtol=2e-5)
             flat=torch.cat([a.detach().flatten(),matrix.detach().flatten()])
             replicas=xm.all_gather(flat.unsqueeze(0),dim=0)

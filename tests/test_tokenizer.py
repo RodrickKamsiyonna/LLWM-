@@ -7,6 +7,7 @@ python -m pytest tests/test_tokenizer.py -v
 """
 
 import pytest
+import torch
 from nanochat.tokenizer import RustBPETokenizer, SPECIAL_TOKENS
 
 # a small corpus is enough to exercise the BPE machinery
@@ -56,6 +57,33 @@ def test_encode_batch(tokenizer):
     ids = tokenizer.encode(texts)
     assert isinstance(ids, list) and len(ids) == 2
     assert ids[0] == tokenizer.encode("hello")
+
+
+def test_token_bytes_xla_storage_is_loaded_on_cpu_then_transferred(tmp_path, monkeypatch):
+    from nanochat import common, tokenizer as tokenizer_module
+    tokenizer_dir = tmp_path / "tokenizer"
+    tokenizer_dir.mkdir()
+    (tokenizer_dir / "token_bytes.pt").touch()
+    monkeypatch.setattr(common, "get_base_dir", lambda: str(tmp_path))
+
+    class LoadedTensor:
+        def __init__(self):
+            self.destination = None
+        def to(self, destination):
+            self.destination = destination
+            return self
+
+    loaded = LoadedTensor()
+    calls = []
+    def fake_load(file, map_location):
+        calls.append(map_location)
+        return loaded
+
+    monkeypatch.setattr(torch, "load", fake_load)
+    result = tokenizer_module.get_token_bytes(torch.device("xla:0"))
+    assert result is loaded
+    assert calls == ["cpu"]
+    assert str(loaded.destination) == "xla:0"
 
 
 def test_render_conversation_masks(tokenizer):

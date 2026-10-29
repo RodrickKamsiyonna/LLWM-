@@ -275,5 +275,11 @@ def get_token_bytes(device="cpu"):
     token_bytes_path = os.path.join(tokenizer_dir, "token_bytes.pt")
     assert os.path.exists(token_bytes_path), f"Token bytes not found at {token_bytes_path}? It gets written by tok_train.py"
     with open(token_bytes_path, "rb") as f:
-        token_bytes = torch.load(f, map_location=device)
+        # torch.load cannot restore storages tagged ``xla:0`` through its
+        # default device registry. Read this small tokenizer lookup tensor on
+        # CPU, then use the supported XLA tensor transfer path.
+        if torch.device(device).type == "xla":
+            token_bytes = torch.load(f, map_location="cpu").to(device)
+        else:
+            token_bytes = torch.load(f, map_location=device)
     return token_bytes
