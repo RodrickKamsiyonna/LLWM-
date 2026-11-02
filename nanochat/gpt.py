@@ -109,15 +109,21 @@ class CausalSelfAttention(nn.Module):
             # Training: causal attention with optional sliding window
             y = flash_attn.flash_attn_func(q, k, v, causal=True, window_size=window_size)
         else:
-            # Inference: use flash_attn_with_kvcache which handles cache management
-            k_cache, v_cache = kv_cache.get_layer_cache(self.layer_idx)
-            y = flash_attn.flash_attn_with_kvcache(
-                q, k_cache, v_cache,
-                k=k, v=v,
-                cache_seqlens=kv_cache.cache_seqlens,
-                causal=True,
-                window_size=window_size,
-            )
+            if getattr(kv_cache, 'differentiable', False):
+                # Planning appends soft-token K/V functionally. In-place cache
+                # writes sever autograd through earlier soft compressor steps.
+                k_full, v_full = kv_cache.append_layer(self.layer_idx, k, v)
+                y = flash_attn.flash_attn_func(q, k_full, v_full, causal=True, window_size=window_size)
+            else:
+                # Inference: use flash_attn_with_kvcache which handles cache management
+                k_cache, v_cache = kv_cache.get_layer_cache(self.layer_idx)
+                y = flash_attn.flash_attn_with_kvcache(
+                    q, k_cache, v_cache,
+                    k=k, v=v,
+                    cache_seqlens=kv_cache.cache_seqlens,
+                    causal=True,
+                    window_size=window_size,
+                )
             # Advance position after last layer processes
             if self.layer_idx == kv_cache.n_layers - 1:
                 kv_cache.advance(T)
@@ -512,6 +518,47 @@ class GPT(nn.Module):
             x = x - self.backout_lambda.to(x.dtype) * x_backout
         x = norm(x)
 
+        return x
+
+    def encode_soft_embeddings(self, embeddings, probabilities, kv_cache=None):
+        """Compress differentiable expected-token embeddings with optional KV cache."""
+        B, T, _ = embeddings.shape
+        if T != 1:
+            raise ValueError('soft-embedding KV encoding expects one token per call')
+        if kv_cache is None or not getattr(kv_cache, 'differentiable', False):
+            raise ValueError('soft-embedding encoding requires a differentiable KV cache')
+        if probabilities.shape != (B, T, self.config.vocab_size):
+            raise ValueError('soft-token probabilities have the wrong shape')
+        T0 = kv_cache.get_pos()
+        if T0 + T > self.cos.size(1):
+            raise ValueError('soft-token rollout exceeds the compressor context length')
+        cos_sin = self.cos[:, T0:T0+T], self.sin[:, T0:T0+T]
+
+        x = norm(embeddings.to(COMPUTE_DTYPE))
+        previous = kv_cache.prev_embedding
+        kv_cache.prev_embedding = x[:, -1:, :]
+        if previous is not None:
+            gate = self.smear_lambda.to(x.dtype) * torch.sigmoid(self.smear_gate(x[:, :, :24]))
+            x = x + gate * previous
+
+        x0 = x
+        backout_layer = self.config.n_layer // 2
+        x_backout = None
+        probs = probabilities.float()
+        for i, block in enumerate(self.transformer.h):
+            x = self.resid_lambdas[i] * x + self.x0_lambdas[i] * x0
+            key = str(i)
+            if key in self.value_embeds:
+                table = self.value_embeds[key].weight[:self.config.vocab_size].float()
+                ve = torch.matmul(probs, table).to(x.dtype)
+            else:
+                ve = None
+            x = block(x, ve, cos_sin, self.window_sizes[i], kv_cache)
+            if i == backout_layer:
+                x_backout = x
+        if x_backout is not None:
+            x = x - self.backout_lambda.to(x.dtype) * x_backout
+        x = norm(x)
         return x
 
     def forward(self, idx, targets=None, kv_cache=None, loss_reduction='mean'):

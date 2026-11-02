@@ -123,6 +123,9 @@ class LLWM(GPT):
     def encode(self, idx, kv_cache=None):
         return self.compressor_norm(super().encode(idx, kv_cache=kv_cache))
 
+    def encode_soft_embeddings(self, embeddings, probabilities, kv_cache=None):
+        return self.compressor_norm(super().encode_soft_embeddings(embeddings, probabilities, kv_cache=kv_cache))
+
     def posterior(self, memory, next_memory, *, detach_inputs=True):
         if detach_inputs:
             memory, next_memory = memory.detach(), next_memory.detach()

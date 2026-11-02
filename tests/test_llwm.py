@@ -69,6 +69,34 @@ def test_action_encoder_halving():
     assert encoder(torch.randn(2,3,512)).shape == (2,3,64)
 
 
+def test_soft_compressor_planner_uses_differentiable_kv_and_keeps_model_frozen():
+    from nanochat.engine import KVCache
+    from nanochat.planning import plan_soft_compressor, soft_compressor_rollout
+    model=make_model()
+    prompt=torch.tensor([[1,2,3]])
+    cache=KVCache(batch_size=1,num_heads=model.config.n_kv_head,seq_len=7,
+                  head_dim=model.config.n_embd//model.config.n_head,
+                  num_layers=model.config.n_layer,device=prompt.device,
+                  dtype=model.transformer.wte.weight.dtype)
+    with torch.no_grad():
+        initial=model.encode(prompt,kv_cache=cache)[:,-1:].detach()
+    actions=torch.randn(1,4,model.config.action_dim,requires_grad=True)
+    logits=soft_compressor_rollout(model,initial,cache,actions)
+    assert logits.shape==(1,4,model.config.vocab_size)
+    grad=torch.autograd.grad(logits[:,-1].square().mean(),actions)[0]
+    assert torch.isfinite(grad).all()
+
+    weights={name:p.detach().clone() for name,p in model.named_parameters()}
+    result=plan_soft_compressor(model,prompt,torch.tensor([4]),horizon=4,iterations=2)
+    assert result['logits'].shape==(1,4,model.config.vocab_size)
+    assert result['tokens'].shape==(1,4)
+    assert result['best_loss']==min(item['goal_ce'] for item in result['history'])
+    assert model.training
+    for name,p in model.named_parameters():
+        assert p.requires_grad and p.grad is None
+        torch.testing.assert_close(p,weights[name])
+
+
 def test_reference_losses_shifted_memory_and_gradients():
     model = make_model(target_kl=0.2,kl_lambda=0.3,ce_weight=0.7,memory_weight=0.4,memory_loss='mse')
     idx,targets = batch()
