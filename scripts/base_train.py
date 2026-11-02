@@ -587,12 +587,16 @@ while True:
     core_due=args.core_metric_every>0 and (last_step or (step>0 and step%args.core_metric_every==0))
     sample_due=args.sample_every>0 and (last_step or (step>0 and step%args.sample_every==0))
     # A resumed checkpoint stores the optimizer step that was just completed.
-    # Do not replay an evaluation at that step during startup: it can hold the
-    # distributed workers before the first post-resume optimizer update.
+    # Do not replay evaluations or rewrite that checkpoint during startup. A
+    # schedule extension changes the contract for future saves, while this
+    # boundary checkpoint remains committed under the old schedule contract.
+    resumed_checkpoint_boundary=resuming and step==meta_data["step"]
     planning_due=(args.planning_every>0 and (last_step or (step>0 and step%args.planning_every==0))
-                  and not (resuming and step==meta_data["step"]))
+                  and not resumed_checkpoint_boundary)
     # Commit recovery state BEFORE optional evaluation can fail.
-    if last_step or (step>0 and ((args.save_every>0 and step%args.save_every==0) or validation_due or core_due or sample_due)):
+    if (not resumed_checkpoint_boundary and
+            (last_step or (step>0 and ((args.save_every>0 and step%args.save_every==0)
+                                      or validation_due or core_due or sample_due)))):
         save_training_checkpoint()
     flops_so_far = num_flops_per_token * total_batch_size * step
 
