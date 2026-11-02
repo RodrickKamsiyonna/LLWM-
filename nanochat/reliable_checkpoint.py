@@ -88,7 +88,23 @@ def _read_file(store,record,cache=None):
         return torch.load(path,map_location='cpu',weights_only=False)
 
 
-def read_complete(root,step,rank=0,load_optimizer=False,expected_world=None,contract=None,cache=None,load_model=True):
+def _is_completed_horizon_extension(checkpoint_contract,requested_contract,step):
+    """Allow only a strict continuation from a checkpoint at its old final step."""
+    if not isinstance(checkpoint_contract,dict) or not isinstance(requested_contract,dict):
+        return False
+    old_horizon=checkpoint_contract.get('num_iterations')
+    new_horizon=requested_contract.get('num_iterations')
+    if not isinstance(old_horizon,int) or not isinstance(new_horizon,int):
+        return False
+    if old_horizon!=step or new_horizon<=old_horizon:
+        return False
+    old=dict(checkpoint_contract); new=dict(requested_contract)
+    old.pop('num_iterations'); new.pop('num_iterations')
+    return old==new
+
+
+def read_complete(root,step,rank=0,load_optimizer=False,expected_world=None,contract=None,cache=None,load_model=True,
+                  allow_horizon_extension=False):
     store=ArtifactStore(root)
     name=f'complete_{step:06d}.json'
     if not store.exists(name): raise ValueError(f'Incomplete or missing checkpoint: {root}/{name}')
@@ -100,7 +116,11 @@ def read_complete(root,step,rank=0,load_optimizer=False,expected_world=None,cont
         raise ValueError('Checkpoint manifest lacks rank runtime files')
     if load_optimizer and expected_world is not None and expected_world!=world:
         raise ValueError(f'Exact resume requires original world size {world}, got {expected_world}')
-    if load_optimizer and contract is not None and manifest['contract']!=contract:
+    contract_matches=(contract is None or manifest['contract']==contract)
+    if (load_optimizer and not contract_matches and allow_horizon_extension
+            and _is_completed_horizon_extension(manifest['contract'],contract,step)):
+        contract_matches=True
+    if load_optimizer and not contract_matches:
         raise ValueError('Training contract mismatch: architecture, batch, objective, scheduler horizon or optimizer settings changed')
     records=[manifest['model'],manifest['metadata'],*manifest['runtime'].values(),*manifest['optimizer'].values()]
     if any(not store.exists(item['name']) for item in records):
@@ -124,11 +144,13 @@ def read_complete(root,step,rank=0,load_optimizer=False,expected_world=None,cont
 
 
 class TrainingCheckpoints:
-    def __init__(self,root,run_id,rank,world_size,device,contract,keep=1,shared=False,cache=None):
+    def __init__(self,root,run_id,rank,world_size,device,contract,keep=1,shared=False,cache=None,
+                 allow_horizon_extension=False):
         if keep and keep<1: raise ValueError('Checkpoint retention must be positive (or 0 for unlimited)')
         self.store=ArtifactStore(root)
         self.root,self.run_id,self.rank,self.world_size=str(root),run_id,rank,world_size
         self.device,self.contract,self.keep,self.cache=device,contract,keep,cache
+        self.allow_horizon_extension=allow_horizon_extension
         if world_size>1 and not(self.store.cloud or shared):
             raise ValueError('Distributed checkpoints require gs:// or explicitly configured --checkpoint-shared filesystem; rank-local paths cannot be resumed across hosts')
 
@@ -148,7 +170,8 @@ class TrainingCheckpoints:
         return steps[-1]
 
     def load(self,step):
-        return read_complete(self.root,step,self.rank,True,self.world_size,self.contract,self.cache)
+        return read_complete(self.root,step,self.rank,True,self.world_size,self.contract,self.cache,
+                             allow_horizon_extension=self.allow_horizon_extension)
 
     def save(self,step,model,optimizer,metadata,runtime):
         # Already committed checkpoints are immutable; no overwrite on a resumed boundary.
@@ -190,6 +213,20 @@ class TrainingCheckpoints:
                 error=dict(exception=repr(exc),traceback=traceback.format_exc())
             reports=gather_json(dict(rank=self.rank,error=error,files=records),f'checkpoint-receipts-{step}')
             if any(report['error'] for report in reports):
+                # A failed transaction has no completion manifest and is never
+                # resumable. Remove its successfully uploaded rank artifacts so
+                # retries do not accumulate orphaned checkpoint files.
+                cleanup_error=None
+                if self.rank==0:
+                    try:
+                        for report in reports:
+                            for record in report['files'].values():
+                                self.store.delete(record['name'])
+                    except Exception as exc:
+                        cleanup_error=repr(exc)
+                cleanup_errors=gather_json(cleanup_error,f'checkpoint-cleanup-{step}')
+                if any(cleanup_errors):
+                    diag.event('checkpoint_cleanup_error',checkpoint_step=step,errors=cleanup_errors)
                 raise RuntimeError(f'Checkpoint transaction failed, no completion manifest written: {reports}')
             commit_error=None
             if self.rank==0:
@@ -225,3 +262,15 @@ class TrainingCheckpoints:
             self.store.delete(name)
             for record in records: self.store.delete(record['name'])
             if self.store.exists(f'meta_{step:06d}.json'): self.store.delete(f'meta_{step:06d}.json')
+        # This checkpoint directory is scoped to one run. Keep files referenced
+        # by its retained completion manifests and remove failed/intermediate
+        # attempt artifacts, so each successful save replaces the prior save.
+        retained=set()
+        for step in complete_steps(self.root)[-self.keep:]:
+            manifest=self.store.get_json(f'complete_{step:06d}.json')
+            if manifest.get('run_id')==self.run_id:
+                retained.update(record['name'] for record in
+                                [manifest['model'],manifest['metadata'],*manifest['runtime'].values(),*manifest['optimizer'].values()])
+        for name in self.store.list('attempts/'):
+            if name not in retained:
+                self.store.delete(name)

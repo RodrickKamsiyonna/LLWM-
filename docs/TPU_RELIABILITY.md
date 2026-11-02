@@ -108,6 +108,17 @@ The actual parsed configuration and model configuration are printed in rank logs
 Changing training geometry/objectives/schedule after a checkpoint is rejected for
 exact resume. Preview without touching devices using `DRY_RUN=1`.
 
+### Continue a completed 6,000-step run for another 6,000 steps
+
+The explicit `RESUME_EXTEND_SCHEDULE=1` mode is only for a complete checkpoint
+whose saved `num_iterations` equals its optimizer step. It permits changing the
+total horizon while requiring every other checkpoint contract field to match.
+The added phase holds the prior schedule's terminal values (LR multiplier at
+`FINAL_LR_FRAC`, Muon momentum `0.90`, weight decay `0`) so the first resumed
+update does not jump back up to the LR of a newly stretched 12,000-step schedule.
+All other exact-resume contract changes remain errors. Set `NUM_ITERATIONS` to
+the new final step, not to the number of additional steps.
+
 ## Monitor, stop and resume
 
 ```bash

@@ -14,7 +14,8 @@ RELIABILITY_ARGS=(--xla-sync-mode="${XLA_SYNC_MODE:-microstep}" --xla-metrics-ev
     --max-document-chars="${MAX_DOCUMENT_CHARS:-1000000}" --max-document-tokens="${MAX_DOCUMENT_TOKENS:-262144}"
     --max-tokenizer-chars="${MAX_TOKENIZER_CHARS:-1000000}" --long-document-policy="${LONG_DOCUMENT_POLICY:-error}"
     --packing-policy="${PACKING_POLICY:-legacy_crop}" --checkpoint-keep="${CHECKPOINT_KEEP:-1}"
-    --planning-every="${PLANNING_EVERY:--1}" --stop-after-step="${STOP_AFTER_STEP:--1}")
+    --planning-every="${PLANNING_EVERY:--1}" --planning-prompt="${PLANNING_PROMPT:-The capital of France is}"
+    --stop-after-step="${STOP_AFTER_STEP:--1}")
 [[ -z "${DATASET_MANIFEST:-}" ]] || RELIABILITY_ARGS+=(--dataset-manifest="$DATASET_MANIFEST")
 [[ -z "${RUN_ID:-}" ]] || RELIABILITY_ARGS+=(--run-id="$RUN_ID")
 [[ -z "${CHECKPOINT_DIR:-}" ]] || RELIABILITY_ARGS+=(--checkpoint-dir="$CHECKPOINT_DIR")
@@ -22,8 +23,13 @@ RELIABILITY_ARGS=(--xla-sync-mode="${XLA_SYNC_MODE:-microstep}" --xla-metrics-ev
 [[ "${CHECKPOINT_SHARED:-0}" != 1 ]] || RELIABILITY_ARGS+=(--checkpoint-shared)
 [[ "${DEBUG_DIAGNOSTICS:-0}" != 1 ]] || RELIABILITY_ARGS+=(--debug-diagnostics)
 [[ "${VERIFY_COLLECTIVES:-0}" != 1 ]] || RELIABILITY_ARGS+=(--verify-collectives)
+if [[ "${RESUME_EXTEND_SCHEDULE:-0}" == 1 && "${RESUME_LATEST:-0}" != 1 ]]; then
+    echo "RESUME_EXTEND_SCHEDULE=1 requires RESUME_LATEST=1" >&2
+    exit 2
+fi
 if [[ "${RESUME_LATEST:-0}" == 1 ]]; then
     RELIABILITY_ARGS+=(--resume-latest)
+    [[ "${RESUME_EXTEND_SCHEDULE:-0}" != 1 ]] || RELIABILITY_ARGS+=(--resume-extend-schedule)
 elif [[ -n "${RESUME_FROM_STEP:-}" ]]; then
     RELIABILITY_ARGS+=(--resume-from-step="$RESUME_FROM_STEP")
 fi

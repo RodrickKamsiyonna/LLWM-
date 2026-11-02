@@ -121,6 +121,8 @@ parser.add_argument('--checkpoint-shared', action='store_true', help='assert fil
 parser.add_argument('--checkpoint-cache', help='per-host download cache (one optimizer download per host)')
 parser.add_argument('--checkpoint-keep', type=int, default=1)
 parser.add_argument('--resume-latest', action='store_true')
+parser.add_argument('--resume-extend-schedule', action='store_true',
+                    help='allow a longer second training phase from a checkpoint saved exactly at its prior schedule end')
 parser.add_argument('--stop-after-step', type=int, default=-1, help='qualification cutoff; does NOT change the total schedule or token budget')
 parser.add_argument('--planning-every', type=int, default=-1, help='independent periodic goal planning; -1 disables')
 parser.add_argument('--planning-prompt', default='The capital of France is')
@@ -128,6 +130,8 @@ args = parser.parse_args()
 args.run_id = args.run_id or ('local-' + uuid.uuid4().hex[:12])
 if args.resume_latest and args.resume_from_step >= 0:
     parser.error('Use resume-latest OR resume-from-step')
+if args.resume_extend_schedule and not args.resume_latest:
+    parser.error('--resume-extend-schedule requires --resume-latest')
 for name in ('eval_every','core_metric_every','sample_every','planning_every','save_every'):
     value=getattr(args,name)
     if value != -1 and value <= 0: parser.error(f'{name} must be -1 or positive')
@@ -444,8 +448,14 @@ print0(f"Total number of training tokens: {total_tokens:,}")
 print0(f"Tokens : Scaling params ratio: {total_batch_size * num_iterations / num_scaling_params:.2f}") # e.g. Chinchilla was ~20
 print0(f"Total training FLOPs estimate: {num_flops_per_token * total_tokens:e}")
 
+# Set after restoring the checkpoint manifest. A resumed extension holds the
+# original schedule's terminal LR/momentum/decay values for its added phase.
+schedule_extension_start = None
+
 # Learning rate schedule (linear warmup, constant, linear warmdown)
 def get_lr_multiplier(it):
+    if schedule_extension_start is not None and it >= schedule_extension_start:
+        return args.final_lr_frac
     warmup_iters = args.warmup_steps
     warmdown_iters = round(args.warmdown_ratio * num_iterations)
     if it < warmup_iters:
@@ -458,6 +468,8 @@ def get_lr_multiplier(it):
 
 # Momentum scheduler for Muon optimizer (warms up to 0.97, warms down to 0.90 during LR warmdown)
 def get_muon_momentum(it):
+    if schedule_extension_start is not None and it >= schedule_extension_start:
+        return 0.90
     warmdown_iters = round(args.warmdown_ratio * num_iterations)
     warmdown_start = num_iterations - warmdown_iters
     if it < 400:
@@ -471,6 +483,8 @@ def get_muon_momentum(it):
 
 # Weight decay scheduler for Muon optimizer (cosine decay to zero over the course of training)
 def get_weight_decay(it):
+    if schedule_extension_start is not None and it >= schedule_extension_start:
+        return 0.0
     return weight_decay_scaled * 0.5 * (1 + math.cos(math.pi * it / num_iterations))
 
 # Exact recovery validates the total schedule; stop-after-step only limits this attempt.
@@ -481,15 +495,22 @@ contract=dict(model_config=model_config_kwargs,world_size=ddp_world_size,
     scheduler={name:getattr(args,name) for name in ('warmup_steps','warmdown_ratio','final_lr_frac')})
 cache=args.checkpoint_cache or str(Path('/tmp/llwm-checkpoint-cache')/args.run_id)
 checkpoints=TrainingCheckpoints(checkpoint_dir,args.run_id,ddp_rank,ddp_world_size,device,contract,
-    keep=args.checkpoint_keep,shared=args.checkpoint_shared,cache=cache)
+    keep=args.checkpoint_keep,shared=args.checkpoint_shared,cache=cache,
+    allow_horizon_extension=args.resume_extend_schedule)
 checkpoints.verify_storage()
 if resuming:
     resume_step=checkpoints.latest() if args.resume_latest else args.resume_from_step
     with diag.span('checkpoint_restore',checkpoint_step=resume_step):
-        model_data,optimizer_data,meta_data,runtime_state,_=checkpoints.load(resume_step)
+        model_data,optimizer_data,meta_data,runtime_state,checkpoint_manifest=checkpoints.load(resume_step)
         orig_model.load_state_dict(model_data,strict=True,assign=False)
         optimizer.load_state_dict(optimizer_data)
         del model_data,optimizer_data
+        if args.resume_extend_schedule:
+            schedule_extension_start=int(checkpoint_manifest['contract']['num_iterations'])
+            if schedule_extension_start!=meta_data['step'] or num_iterations<=schedule_extension_start:
+                raise ValueError('--resume-extend-schedule requires a completed checkpoint and a larger --num-iterations')
+            print0(f"Extending completed {schedule_extension_start}-step schedule to {num_iterations} steps; "
+                   f"continuation holds LR multiplier at {args.final_lr_frac}, Muon momentum at 0.90, and weight decay at 0")
     if meta_data['step']>num_iterations:
         raise ValueError('Checkpoint is past the configured training budget')
     if args.stop_after_step>0 and args.stop_after_step<=meta_data['step']:
@@ -565,9 +586,13 @@ while True:
     validation_due=args.eval_every>0 and (last_step or step%args.eval_every==0)
     core_due=args.core_metric_every>0 and (last_step or (step>0 and step%args.core_metric_every==0))
     sample_due=args.sample_every>0 and (last_step or (step>0 and step%args.sample_every==0))
-    planning_due=args.planning_every>0 and (last_step or (step>0 and step%args.planning_every==0))
+    # A resumed checkpoint stores the optimizer step that was just completed.
+    # Do not replay an evaluation at that step during startup: it can hold the
+    # distributed workers before the first post-resume optimizer update.
+    planning_due=(args.planning_every>0 and (last_step or (step>0 and step%args.planning_every==0))
+                  and not (resuming and step==meta_data["step"]))
     # Commit recovery state BEFORE optional evaluation can fail.
-    if last_step or (step>0 and ((args.save_every>0 and step%args.save_every==0) or validation_due or core_due or sample_due or planning_due)):
+    if last_step or (step>0 and ((args.save_every>0 and step%args.save_every==0) or validation_due or core_due or sample_due)):
         save_training_checkpoint()
     flops_so_far = num_flops_per_token * total_batch_size * step
 
@@ -645,12 +670,21 @@ while True:
     # single training step
     # evaluate the gradient
     t0 = time.time()
+    train_loss_sum = None
+    loss_component_sums = None
     for micro_step in range(grad_accum_steps):
         diag.set_context(microstep=micro_step,**{k:dataloader_state_dict.get(k) for k in ('pq_idx','rg_idx','epoch','batch_number')})
         with diag.span('forward',detail=True):
             loss_components = model(x,y,return_loss_components=True) if args.model_type=='llwm' else None
             loss = loss_components['loss'] if loss_components is not None else model(x,y)
         train_loss = loss.detach() # for logging
+        train_loss_sum = train_loss if train_loss_sum is None else train_loss_sum + train_loss
+        if loss_components is not None:
+            if loss_component_sums is None:
+                loss_component_sums = {key: value.detach() for key, value in loss_components.items()}
+            else:
+                loss_component_sums = {key: loss_component_sums[key] + value.detach()
+                                       for key, value in loss_components.items()}
         loss = loss / grad_accum_steps # each .backward() is a grad sum => normalize loss here
         with diag.span('backward',detail=True):
             if scaler is not None:
@@ -660,6 +694,11 @@ while True:
         xla_microstep_boundary(device,args.xla_sync_mode)
         with diag.span('next_batch',detail=True):
             x,y,dataloader_state_dict=next(train_loader) # prefetch the next batch while the GPU is busy with forward/backward
+    # Report optimizer-step means across every accumulated microstep, rather than
+    # exposing only the final microbatch's loss decomposition.
+    train_loss = train_loss_sum / grad_accum_steps
+    if loss_component_sums is not None:
+        loss_components = {key: value / grad_accum_steps for key, value in loss_component_sums.items()}
     # step the optimizer
     lrm = get_lr_multiplier(step)
     muon_momentum = get_muon_momentum(step)
@@ -684,12 +723,18 @@ while True:
         with diag.span("optimizer_update"):
             optimizer.step()
     model.zero_grad(set_to_none=True)
-    train_loss_f = train_loss.item() # .item() is a CPU-GPU sync point
+    component_names = ('ce', 'memory_loss', 'kl', 'kl_total', 'kl_excess', 'kl_penalty')
+    metric_tensors = [train_loss.detach().float()]
+    if loss_components is not None:
+        metric_tensors.extend(loss_components[name].detach().float() for name in component_names)
+    metric_values = torch.stack(metric_tensors).cpu().tolist() # one compact device-to-host transfer
+    train_loss_f = metric_values[0]
+    train_loss_components = dict(zip(component_names, metric_values[1:])) if loss_components is not None else {}
     with diag.span('step_synchronize',detail=True):
         synchronize()
     if args.xla_metrics_every>0 and (step+1)%args.xla_metrics_every==0:
         diag.event('xla_metrics',metrics=diag.xla_metrics(device))
-    diag.event('step_complete',completed_step=step+1)
+    diag.event('step_complete',completed_step=step+1,train_losses=dict(loss= train_loss_f, **train_loss_components))
     t1 = time.time()
     dt = t1 - t0
     # -------------------------------------------------------------------------
@@ -714,7 +759,8 @@ while True:
     else:
         eta_str = ""
     epoch = f"{dataloader_state_dict['epoch']} pq: {dataloader_state_dict['pq_idx']} rg: {dataloader_state_dict['rg_idx']}"
-    print0(f"step {step:05d}/{num_iterations:05d} ({pct_done:.2f}%) | loss: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt * 1000:.2f}ms | tok/sec: {tok_per_sec:,} | bf16_mfu: {mfu:.2f} | epoch: {epoch} | total time: {total_training_time/60:.2f}m{eta_str}")
+    loss_detail = " | losses: " + " ".join(f"{name}={value:.6f}" for name, value in train_loss_components.items()) if train_loss_components else ""
+    print0(f"step {step:05d}/{num_iterations:05d} ({pct_done:.2f}%) | loss: {train_loss_f:.6f} | loss_ema: {debiased_smooth_loss:.6f} | lrm: {lrm:.2f} | dt: {dt * 1000:.2f}ms | tok/sec: {tok_per_sec:,} | bf16_mfu: {mfu:.2f} | epoch: {epoch} | total time: {total_training_time/60:.2f}m{eta_str}{loss_detail}")
     if step % 100 == 0:
         log_data = {
             "step": step,

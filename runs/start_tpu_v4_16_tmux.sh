@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Start the configured v4-16 profile in a detached, persistent tmux session.
+set -euo pipefail
+: "${RUN_ID:?Set RUN_ID}"
+: "${ATTEMPT_ID:?Set ATTEMPT_ID}"
+session="llwm-${ATTEMPT_ID}"
+if tmux has-session -t "$session" 2>/dev/null; then
+    echo "tmux session already exists: $session" >&2
+    exit 2
+fi
+
+cd "$(dirname -- "${BASH_SOURCE[0]}")/.."
+mkdir -p evidence
+env_file="$PWD/evidence/${ATTEMPT_ID}-tmux.env"
+# Only persist the training knobs needed by the detached tmux process.
+python3 - "$env_file" <<'PY'
+import os, shlex, sys
+keys = "NANOCHAT_BASE_DIR RUN_ID ATTEMPT_ID CHECKPOINT_ROOT CHECKPOINT_DIR CONTROL_DIR DATASET_MANIFEST RESUME_LATEST RESUME_FROM_STEP RESUME_EXTEND_SCHEDULE SAVE_EVERY CHECKPOINT_KEEP NUM_ITERATIONS STOP_AFTER_STEP DEVICE_BATCH_SIZE TOTAL_BATCH_SIZE DEPTH PREDICTOR_LAYERS ASPECT_RATIO HEAD_DIM WINDOW_PATTERN MAX_SEQ_LEN ACTION_DIM ACTION_LAYERS TARGET_KL KL_LAMBDA EVAL_EVERY EVAL_TOKENS CORE_METRIC_EVERY CORE_MAX_PER_TASK SAMPLE_EVERY PLANNING_EVERY PLANNING_PROMPT PLAN_GOAL PLAN_ITERATIONS PLAN_LR PLAN_CONSISTENCY_WEIGHT PLAN_SEED EVAL_MAX_NEW_TOKENS EVAL_MODE SKIP_SETUP SKIP_DATA WANDB_RUN OMP_NUM_THREADS LOG_DIR DEBUG_DIAGNOSTICS XLA_METRICS_EVERY TOKENIZER_THREADS TOKENIZER_BATCH_SIZE TOKENIZER_MAX_CHARS POST_EVAL RUN_SFT MODEL_TAG PARAM_DATA_RATIO MAX_BUFFER_TOKENS MAX_DOCUMENT_CHARS MAX_DOCUMENT_TOKENS MAX_TOKENIZER_CHARS LONG_DOCUMENT_POLICY PACKING_POLICY EXPECTED_WORLD_SIZE EXPECTED_LOCAL_DEVICES XLA_SYNC_MODE".split()
+with open(sys.argv[1], "w") as f:
+    for key in keys:
+        if key in os.environ:
+            f.write(f"export {key}={shlex.quote(os.environ[key])}\n")
+PY
+
+tmux new-session -d -s "$session" "bash -lc 'cd $(printf %q "$PWD"); source $(printf %q "$env_file"); exec bash runs/tpu_v4_16.sh >> evidence/${ATTEMPT_ID}-host.log 2>&1'"
+echo "Started $session on $(hostname); output: $PWD/evidence/${ATTEMPT_ID}-host.log"

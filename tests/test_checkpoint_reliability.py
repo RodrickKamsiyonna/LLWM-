@@ -49,6 +49,22 @@ def test_incomplete_mismatched_and_corrupt_checkpoints_are_rejected(tmp_path):
     with pytest.raises(ValueError,match='checksum'):read_complete(tmp_path,25)
 
 
+def test_completed_schedule_can_be_extended_only_without_other_contract_changes(tmp_path):
+    original={'num_iterations':6000,'model':'llwm','optimizer':{'kl_lambda':2.0},'scheduler':{'warmdown_ratio':0.65}}
+    checkpoint=manager(tmp_path,contract=original)
+    checkpoint.save(6000,{'p':torch.ones(2)},{'state':{}},{'step':6000},{'loader':{}})
+    extended={**original,'num_iterations':12000}
+    restored=read_complete(tmp_path,6000,load_optimizer=True,expected_world=1,contract=extended,
+                           allow_horizon_extension=True)
+    assert restored[2]['step']==6000
+    with pytest.raises(ValueError,match='contract'):
+        read_complete(tmp_path,6000,load_optimizer=True,expected_world=1,
+                      contract={**extended,'optimizer':{'kl_lambda':2.5}},allow_horizon_extension=True)
+    with pytest.raises(ValueError,match='contract'):
+        read_complete(tmp_path,6000,load_optimizer=True,expected_world=1,
+                      contract={**original,'num_iterations':6000},allow_horizon_extension=True)
+
+
 def test_retention_keeps_only_latest_complete_and_preserves_legacy_files(tmp_path):
     legacy=tmp_path/'model_000001.pt';legacy.write_bytes(b'legacy preserved')
     checkpoint=manager(tmp_path,keep=1)
