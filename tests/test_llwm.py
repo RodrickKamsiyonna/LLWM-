@@ -87,7 +87,7 @@ def test_soft_compressor_planner_uses_differentiable_kv_and_keeps_model_frozen()
     assert torch.isfinite(grad).all()
 
     weights={name:p.detach().clone() for name,p in model.named_parameters()}
-    result=plan_soft_compressor(model,prompt,torch.tensor([4]),horizon=4,iterations=2)
+    result=plan_soft_compressor(model,prompt,torch.tensor([4]),horizon=4,iterations=2,return_logits=True)
     assert result['logits'].shape==(1,4,model.config.vocab_size)
     assert result['tokens'].shape==(1,4)
     assert result['best_loss']==min(item['goal_ce'] for item in result['history'])
