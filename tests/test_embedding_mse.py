@@ -1,8 +1,6 @@
 import torch
 from nanochat.llwm import LLWM, LLWMConfig
 from nanochat.planning import mpc_plan
-from nanochat.engine import DifferentiableKVCache
-from nanochat.st_planning import st_rollout
 
 
 def make_model():
@@ -39,6 +37,8 @@ def test_nearest_embedding_decoding():
 
 
 def test_stagewise_embedding_gradient_and_two_round_mpc():
+    from nanochat.engine import DifferentiableKVCache
+    from nanochat.st_planning import st_rollout
     m=make_model().eval()
     for p in m.parameters():p.requires_grad_(False)
     cache=DifferentiableKVCache(2,8)

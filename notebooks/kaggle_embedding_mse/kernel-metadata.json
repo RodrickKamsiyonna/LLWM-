@@ -1,5 +1,5 @@
 {
-  "id": "YOUR_KAGGLE_USERNAME/llwm-embedding-mse-tpu",
+  "id": "rodrickkamsiyonna/llwm-embedding-mse-tpu-training",
   "title": "LLWM Embedding MSE TPU Training",
   "code_file": "llwm_embedding_mse.ipynb",
   "language": "python",
