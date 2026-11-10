@@ -467,16 +467,24 @@ class MuonAdamW(torch.optim.Optimizer):
             from nanochat.diagnostics import span
             with span('gradient_average',detail=True):
                 xm.reduce_gradients(self)
-            gathers = []
-            for group in active_groups:
-                if group['kind'] == 'adamw':
-                    self._compute_adamw(group, self._reduce_adamw(group, 1), gathers, 0, 1)
-                else:
-                    self._compute_muon(group, self._reduce_muon(group, 1), gathers, 0)
-            self._finish_gathers(gathers)
-            from nanochat.diagnostics import span
-            with span('optimizer_dispatch',detail=True):
-                torch_xla.sync()
+            # Flush averaged gradients before adding optimizer math. In eager
+            # PyTorch/XLA, a single marker for every parameter group retains
+            # all update intermediates at once; on the 1.3B TPU model this
+            # exceeds HBM at the first optimizer step. Applying the same
+            # updates group by group bounds temporary memory and preserves the
+            # replicated-gradient averaging and optimizer equations.
+            with span('gradient_average_sync', detail=True):
+                torch_xla.sync(wait=True)
+            for index, group in enumerate(active_groups):
+                gathers = []
+                with span('optimizer_group_update', detail=True, group=index, kind=group['kind']):
+                    if group['kind'] == 'adamw':
+                        self._compute_adamw(group, self._reduce_adamw(group, 1), gathers, 0, 1)
+                    else:
+                        self._compute_muon(group, self._reduce_muon(group, 1), gathers, 0)
+                    self._finish_gathers(gathers)
+                with span('optimizer_group_sync', detail=True, group=index, kind=group['kind']):
+                    torch_xla.sync(wait=True)
             self._xla_scalar_cache.clear()
             return
         # On a single rank (no multi-rank process group), all communication is skipped

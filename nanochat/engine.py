@@ -79,6 +79,59 @@ def use_calculator(expr):
     return eval_with_timeout(expr)
 
 # -----------------------------------------------------------------------------
+class DifferentiableKVCache:
+    """Functional append-only KV tensors for differentiable token rollouts.
+
+    Forks share the immutable prompt prefix; appends replace tensor references
+    with concatenations, so autograd never observes an overwritten cache view.
+    Position is a Python integer, avoiding per-token XLA device-to-host reads.
+    """
+    differentiable = True
+
+    def __init__(self, num_layers, max_seq_len):
+        self.n_layers, self.max_seq_len = num_layers, max_seq_len
+        self.keys, self.values = [None] * num_layers, [None] * num_layers
+        self.prev_embedding = None
+        self.position = 0
+
+    def get_pos(self):
+        return self.position
+
+    def advance(self, num_tokens):
+        self.position += num_tokens
+
+    def append_kv(self, layer, k, v):
+        if self.position + k.size(1) > self.max_seq_len:
+            raise ValueError('differentiable KV cache capacity exceeded')
+        old_k, old_v = self.keys[layer], self.values[layer]
+        if old_k is not None:
+            if old_k.size(1) != self.position:
+                raise ValueError('differentiable KV cache position mismatch')
+            k, v = torch.cat((old_k, k), dim=1), torch.cat((old_v, v), dim=1)
+        self.keys[layer], self.values[layer] = k, v
+        return k, v
+
+    def fork(self):
+        other = DifferentiableKVCache(self.n_layers, self.max_seq_len)
+        other.keys, other.values = list(self.keys), list(self.values)
+        other.prev_embedding, other.position = self.prev_embedding, self.position
+        return other
+
+    def tensors(self):
+        if self.prev_embedding is None or any(k is None for k in self.keys):
+            raise ValueError('prefill the cache before exporting its tensors')
+        return (self.prev_embedding, *self.keys, *self.values)
+
+    @classmethod
+    def from_tensors(cls, tensors, num_layers, max_seq_len, position):
+        other = cls(num_layers, max_seq_len)
+        other.prev_embedding = tensors[0]
+        other.keys = list(tensors[1:1 + num_layers])
+        other.values = list(tensors[1 + num_layers:])
+        other.position = position
+        return other
+
+
 class KVCache:
     """
     KV Cache designed for Flash Attention 3's flash_attn_with_kvcache API.

@@ -23,7 +23,7 @@ from nanochat.common import get_dist_info, print0, COMPUTE_DTYPE
 from nanochat.optim import MuonAdamW
 
 # Our custom Flash Attention module that automatically uses FA3 when compatible and SDPA fallback otherwise
-from nanochat.flash_attention import flash_attn
+from nanochat.flash_attention import flash_attn, _sdpa_attention
 
 @dataclass
 class GPTConfig:
@@ -108,22 +108,23 @@ class CausalSelfAttention(nn.Module):
         if kv_cache is None:
             # Training: causal attention with optional sliding window
             y = flash_attn.flash_attn_func(q, k, v, causal=True, window_size=window_size)
+        elif getattr(kv_cache, 'differentiable', False):
+            k_full, v_full = kv_cache.append_kv(self.layer_idx, k, v)
+            y = _sdpa_attention(q.transpose(1, 2), k_full.transpose(1, 2),
+                                v_full.transpose(1, 2), window_size,
+                                self.n_head != self.n_kv_head).transpose(1, 2)
+            if self.layer_idx == kv_cache.n_layers - 1:
+                kv_cache.advance(T)
         else:
-            if getattr(kv_cache, 'differentiable', False):
-                # Planning appends soft-token K/V functionally. In-place cache
-                # writes sever autograd through earlier soft compressor steps.
-                k_full, v_full = kv_cache.append_layer(self.layer_idx, k, v)
-                y = flash_attn.flash_attn_func(q, k_full, v_full, causal=True, window_size=window_size)
-            else:
-                # Inference: use flash_attn_with_kvcache which handles cache management
-                k_cache, v_cache = kv_cache.get_layer_cache(self.layer_idx)
-                y = flash_attn.flash_attn_with_kvcache(
-                    q, k_cache, v_cache,
-                    k=k, v=v,
-                    cache_seqlens=kv_cache.cache_seqlens,
-                    causal=True,
-                    window_size=window_size,
-                )
+            # Inference: use flash_attn_with_kvcache which handles cache management
+            k_cache, v_cache = kv_cache.get_layer_cache(self.layer_idx)
+            y = flash_attn.flash_attn_with_kvcache(
+                q, k_cache, v_cache,
+                k=k, v=v,
+                cache_seqlens=kv_cache.cache_seqlens,
+                causal=True,
+                window_size=window_size,
+            )
             # Advance position after last layer processes
             if self.layer_idx == kv_cache.n_layers - 1:
                 kv_cache.advance(T)
@@ -433,6 +434,13 @@ class GPT(nn.Module):
         value_embeds_params = list(self.value_embeds.parameters())
         embedding_params = list(self.transformer.wte.parameters())
         lm_head_params = list(self.lm_head.parameters())
+        if hasattr(self, 'llm_head_mlp'):
+            # LLWM's memory MLP follows the output head's unembedding schedule.
+            lm_head_params.extend(self.llm_head_mlp.parameters())
+        if hasattr(self, 'action_projection'):
+            lm_head_params.extend(self.action_projection.parameters())
+        if hasattr(self, 'embedding_head'):
+            lm_head_params.extend(self.embedding_head.parameters())
         resid_params = [self.resid_lambdas]
         x0_params = [self.x0_lambdas]
         smear_params = [self.smear_gate.weight, self.smear_lambda, self.backout_lambda]
@@ -469,7 +477,32 @@ class GPT(nn.Module):
 
     def encode(self, idx, kv_cache=None):
         """Causal compressor features, shared by GPT and the latent world model."""
+        return self.encode_embeddings(self.transformer.wte(idx), idx, kv_cache=kv_cache)
+
+    @staticmethod
+    def straight_through_embedding(probabilities, token_ids, weight):
+        """Exactly the selected embedding forward; expected-embedding gradient."""
+        hard = F.embedding(token_ids, weight).to(COMPUTE_DTYPE)
+        soft = probabilities.to(COMPUTE_DTYPE) @ weight[:probabilities.size(-1)].to(COMPUTE_DTYPE)
+        return hard + (soft - soft.detach())
+
+    def encode_st_tokens(self, probabilities, token_ids, kv_cache=None):
+        embeddings = self.straight_through_embedding(probabilities, token_ids,
+                                                     self.transformer.wte.weight)
+        return self.encode_embeddings(embeddings, token_ids, kv_cache=kv_cache,
+                                      token_probabilities=probabilities)
+
+    def encode_soft_tokens(self, probabilities, token_ids, kv_cache=None):
+        """Expected token/value embeddings, differentiable in forward and backward."""
+        embeddings = probabilities.to(COMPUTE_DTYPE) @ self.transformer.wte.weight[:probabilities.size(-1)].to(COMPUTE_DTYPE)
+        return self.encode_embeddings(embeddings, token_ids, kv_cache=kv_cache,
+                                      token_probabilities=probabilities, soft_tokens=True)
+
+    def encode_embeddings(self, embeddings, idx, kv_cache=None, token_probabilities=None, soft_tokens=False):
+        """Shared compressor path, including token/value embeddings and smear."""
         B, T = idx.size()
+        if embeddings.shape != (B, T, self.config.n_embd):
+            raise ValueError('compressor embeddings must match [batch,tokens,width]')
 
         # Grab the rotary embeddings for the current sequence length (they are of shape (1, seq_len, 1, head_dim/2))
         assert T <= self.cos.size(1), f"Sequence length grew beyond the rotary embeddings cache: {T} > {self.cos.size(1)}"
@@ -480,7 +513,7 @@ class GPT(nn.Module):
         cos_sin = self.cos[:, T0:T0+T], self.sin[:, T0:T0+T] # truncate cache to current sequence length
 
         # Embed the tokens
-        x = self.transformer.wte(idx) # embed current token
+        x = embeddings
         x = x.to(COMPUTE_DTYPE) # ensure activations are in compute dtype (no-op usually, but active for fp16 code path)
         x = norm(x)
 
@@ -509,7 +542,12 @@ class GPT(nn.Module):
         x_backout = None
         for i, block in enumerate(self.transformer.h):
             x = self.resid_lambdas[i] * x + self.x0_lambdas[i] * x0
-            ve = self.value_embeds[str(i)](idx).to(x.dtype) if str(i) in self.value_embeds else None
+            ve = None
+            if str(i) in self.value_embeds:
+                table = self.value_embeds[str(i)]
+                ve = (table(idx).to(x.dtype) if token_probabilities is None else
+                      (token_probabilities.to(x.dtype) @ table.weight[:token_probabilities.size(-1)].to(x.dtype)
+                       if soft_tokens else self.straight_through_embedding(token_probabilities, idx, table.weight)))
             x = block(x, ve, cos_sin, self.window_sizes[i], kv_cache)
             if i == backout_layer:
                 x_backout = x
@@ -518,47 +556,6 @@ class GPT(nn.Module):
             x = x - self.backout_lambda.to(x.dtype) * x_backout
         x = norm(x)
 
-        return x
-
-    def encode_soft_embeddings(self, embeddings, probabilities, kv_cache=None):
-        """Compress differentiable expected-token embeddings with optional KV cache."""
-        B, T, _ = embeddings.shape
-        if T != 1:
-            raise ValueError('soft-embedding KV encoding expects one token per call')
-        if kv_cache is None or not getattr(kv_cache, 'differentiable', False):
-            raise ValueError('soft-embedding encoding requires a differentiable KV cache')
-        if probabilities.shape != (B, T, self.config.vocab_size):
-            raise ValueError('soft-token probabilities have the wrong shape')
-        T0 = kv_cache.get_pos()
-        if T0 + T > self.cos.size(1):
-            raise ValueError('soft-token rollout exceeds the compressor context length')
-        cos_sin = self.cos[:, T0:T0+T], self.sin[:, T0:T0+T]
-
-        x = norm(embeddings.to(COMPUTE_DTYPE))
-        previous = kv_cache.prev_embedding
-        kv_cache.prev_embedding = x[:, -1:, :]
-        if previous is not None:
-            gate = self.smear_lambda.to(x.dtype) * torch.sigmoid(self.smear_gate(x[:, :, :24]))
-            x = x + gate * previous
-
-        x0 = x
-        backout_layer = self.config.n_layer // 2
-        x_backout = None
-        probs = probabilities.float()
-        for i, block in enumerate(self.transformer.h):
-            x = self.resid_lambdas[i] * x + self.x0_lambdas[i] * x0
-            key = str(i)
-            if key in self.value_embeds:
-                table = self.value_embeds[key].weight[:self.config.vocab_size].float()
-                ve = torch.matmul(probs, table).to(x.dtype)
-            else:
-                ve = None
-            x = block(x, ve, cos_sin, self.window_sizes[i], kv_cache)
-            if i == backout_layer:
-                x_backout = x
-        if x_backout is not None:
-            x = x - self.backout_lambda.to(x.dtype) * x_backout
-        x = norm(x)
         return x
 
     def forward(self, idx, targets=None, kv_cache=None, loss_reduction='mean'):

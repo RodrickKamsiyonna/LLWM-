@@ -1,216 +1,264 @@
-"""Optimize actions through autoregressive predicted-memory transitions."""
+"""Predictor-only latent-action planning and receding-horizon MPC."""
 import math
-from nanochat.common import synchronize_device
+
 import torch
 from torch.nn import functional as F
 
 
-class DifferentiableKVCache:
-    """Functional per-layer KV append cache for gradient-based soft-token rollouts."""
-    differentiable = True
-
-    def __init__(self, prefix_cache):
-        self.position = prefix_cache.get_pos()
-        self.max_seq_len = prefix_cache.max_seq_len
-        self.n_layers = prefix_cache.n_layers
-        self.k_layers = [prefix_cache.k_cache[i, :, :self.position] for i in range(self.n_layers)]
-        self.v_layers = [prefix_cache.v_cache[i, :, :self.position] for i in range(self.n_layers)]
-        self.prev_embedding = prefix_cache.prev_embedding
-
-    def get_pos(self):
-        return self.position
-
-    def append_layer(self, layer, key, value):
-        if self.position >= self.max_seq_len:
-            raise ValueError('soft-token rollout exceeds its KV cache allocation')
-        self.k_layers[layer] = torch.cat((self.k_layers[layer], key), dim=1)
-        self.v_layers[layer] = torch.cat((self.v_layers[layer], value), dim=1)
-        return self.k_layers[layer], self.v_layers[layer]
-
-    def advance(self, count):
-        self.position += count
-
-
-def soft_compressor_rollout(model, initial_memory, prefix_cache, actions, temperature=1.0):
-    """Predict tokens, feed their expected embeddings through the cached compressor."""
-    if not math.isfinite(temperature) or temperature <= 0:
-        raise ValueError('soft-token temperature must be finite and positive')
-    cache = DifferentiableKVCache(prefix_cache)
-    memory = initial_memory
-    logits = []
-    embedding_table = model.transformer.wte.weight[:model.config.vocab_size].float()
+def rollout_memories(model, memory, actions):
+    """Unroll the learned predictor; imagined steps never invoke the compressor."""
+    if memory.ndim == 3:
+        memory = memory[:, -1]
+    if memory.ndim != 2 or actions.ndim != 3 or memory.size(0) != actions.size(0):
+        raise ValueError('memory must be [batch,width]; actions [batch,horizon,action_dim]')
+    states = []
+    checkpoint_predictor = (memory.device.type == 'xla' and torch.is_grad_enabled()
+                            and actions.requires_grad)
+    if checkpoint_predictor:
+        # Planning differentiates through the predictor while model weights
+        # are frozen. Rematerialize each recurrent transition on backward so
+        # the 20-step rollout does not retain every layer's activations beside
+        # the sharded training optimizer state on the TPU.
+        # XLA provides its own checkpoint implementation. PyTorch's generic
+        # non-reentrant path expects torch.xla, which torch/XLA does not expose.
+        from torch_xla.utils.checkpoint import checkpoint
     for index, action in enumerate(actions.unbind(1)):
-        predicted_memory = model.predict_features(memory, action[:, None, :])
-        step_logits = model.decode_memory(predicted_memory)
-        logits.append(step_logits)
-        if index + 1 < actions.size(1):
-            probabilities = F.softmax(step_logits.float() / temperature, dim=-1)
-            soft_embedding = torch.matmul(probabilities, embedding_table).to(model.transformer.wte.weight.dtype)
-            memory = model.encode_soft_embeddings(soft_embedding, probabilities, kv_cache=cache)
-    return torch.cat(logits, dim=1)
+        if checkpoint_predictor:
+            memory = checkpoint(model.predict_features, memory, action, use_reentrant=True)
+        else:
+            memory = model.predict_features(memory, action)
+        states.append(memory)
+        # Keep XLA programs bounded: one 20-step rollout would otherwise trace
+        # 20 copies of the full predictor into a single lazy graph. Dispatch
+        # each 4-step segment; this preserves the recurrent autograd path.
+        if memory.device.type == 'xla' and ((index + 1) % 4 == 0 or index + 1 == actions.size(1)):
+            import torch_xla
+            torch_xla.sync(wait=False)
+    return torch.stack(states, dim=1)
 
 
-def plan_soft_compressor(model, prompt, goal, horizon=32, iterations=100, lr=0.05,
-                         seed=123, temperature=1.0, return_logits=False):
-    """Optimize latent actions through predictor, LM head and soft-token compressor recurrences."""
-    if not math.isfinite(lr) or lr <= 0:
-        raise ValueError('planning lr must be finite and positive')
-    if prompt.ndim != 2 or prompt.size(1) < 1:
-        raise ValueError('prompt must be [batch, nonempty sequence]')
-    if goal.ndim != 1 or goal.numel() < 1 or horizon < goal.numel() or iterations < 1:
-        raise ValueError('goal must be nonempty; horizon >= goal length; iterations >= 1')
-    if horizon >= model.config.sequence_len:
-        raise ValueError('planning horizon must leave at least one context position for the prompt')
+def rollout(model, memory, actions):
+    """Decode actions directly for action heads; predicted memories otherwise."""
+    if model.config.head_source == 'action':
+        return model.decode_actions(actions)
+    return model.decode_memory(rollout_memories(model, memory, actions))
 
-    from nanochat.engine import KVCache
+
+def encode_goal_memory(model, goal, batch_size):
+    """Standalone goal context; never insert goal tokens into the prompt cache."""
+    with torch.no_grad():
+        return model.encode(goal[None].expand(batch_size, -1))[:, -1].detach()
+
+
+def _optimize_actions(model, initial, goal, horizon, iterations, lr, seed, action_init=None,
+                      round_index=0, goal_memory=None):
+    from nanochat import diagnostics as diag
+    from nanochat.common import print0
+    targets = goal[None].expand(initial.size(0), -1)
+    memory_objective = model.config.head_source == 'action'
+    metric_name = 'goal_memory_loss' if memory_objective else 'goal_ce'
+    if memory_objective:
+        goal_memory = (encode_goal_memory(model, goal, initial.size(0))
+                       if goal_memory is None else goal_memory.detach())
+        if goal_memory.shape != initial.shape:
+            raise ValueError('goal memory must match the initial [batch,width] state')
+    if action_init is None:
+        action_init = sample_actions(initial.size(0), horizon, model.config.action_dim,
+                                     device=initial.device, seed=seed)
+    if action_init.shape != (initial.size(0), horizon, model.config.action_dim):
+        raise ValueError('warm-start actions have the wrong shape')
+    actions = torch.nn.Parameter(action_init.detach().clone())
+    # Keep Adam's timestep/bias correction on XLA. A Python timestep bakes a
+    # new bias-correction constant into the lazy graph on every iteration.
+    optimizer = torch.optim.Adam([actions], lr=lr, capturable=actions.device.type == 'xla')
+    history, best_loss, best_actions = [], float('inf'), None
+    for iteration in range(iterations + 1):
+        diag.event('planning_iteration_begin', round=round_index, iteration=iteration,
+                   iterations=iterations, horizon=horizon)
+        with torch.set_grad_enabled(iteration < iterations):
+            states = rollout_memories(model, initial, actions)
+            if memory_objective:
+                loss = F.smooth_l1_loss(states[:, -1].float(), goal_memory.float())
+            else:
+                logits = model.decode_memory(states[:, -goal.numel():])
+                loss = F.cross_entropy(logits.flatten(0, 1), targets.flatten())
+        value = float(loss.detach())
+        diag.event('planning_iteration_end', round=round_index, iteration=iteration,
+                   iterations=iterations, horizon=horizon, **{metric_name: value})
+        if iteration % 10 == 0 or iteration == iterations:
+            print0(f'Planning progress: round={round_index + 1} iteration={iteration}/{iterations} '
+                   f'horizon={horizon} {metric_name}={value:.6f}', flush=True)
+        if not math.isfinite(value):
+            raise RuntimeError('non-finite planning objective')
+        history.append({'iteration': iteration, 'loss': value, metric_name: value})
+        if value < best_loss:
+            best_loss, best_actions = value, actions.detach().clone()
+        if iteration < iterations:
+            optimizer.zero_grad(set_to_none=True)
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_([actions], 1.0)
+            optimizer.step()
+            if actions.device.type == 'xla':
+                import torch_xla
+                torch_xla.sync(wait=False)
+    return {'actions': best_actions, 'loss': best_loss,
+            'initial_loss': history[0]['loss'], 'history': history,
+            'metric_name': metric_name}
+
+
+def _freeze_model(model):
     training = model.training
-    flags = [p.requires_grad for p in model.parameters()]
+    flags = [parameter.requires_grad for parameter in model.parameters()]
     model.eval()
     for parameter in model.parameters():
         parameter.requires_grad_(False)
-    try:
-        context = model.config.sequence_len
-        prompt = prompt[:, -(min(prompt.size(1), context-horizon)):]
-        if prompt.size(1) < 1:
-            raise ValueError('no prompt tokens remain after reserving planning horizon')
-        cache = KVCache(batch_size=prompt.size(0), num_heads=model.config.n_kv_head,
-                        seq_len=prompt.size(1)+horizon,
-                        head_dim=model.config.n_embd//model.config.n_head,
-                        num_layers=model.config.n_layer, device=prompt.device,
-                        dtype=model.transformer.wte.weight.dtype)
-        with torch.no_grad():
-            memories = model.encode(prompt, kv_cache=cache)
-            initial = memories[:, -1:].detach()
-
-        actions = torch.nn.Parameter(sample_actions(prompt.size(0), horizon, model.config.action_dim,
-                                                    device=prompt.device, seed=seed))
-        targets = goal[None].expand(prompt.size(0), -1)
-        optimizer = torch.optim.Adam([actions], lr=lr)
-        history, best_loss, best_actions = [], float('inf'), None
-        best_goal_ce = float('inf')
-        for iteration in range(iterations+1):
-            with torch.set_grad_enabled(iteration < iterations):
-                logits = soft_compressor_rollout(model, initial, cache, actions, temperature)
-                goal_logits = logits[:, horizon-goal.numel():]
-                goal_ce = F.cross_entropy(goal_logits.flatten(0, 1), targets.flatten())
-            value = float(goal_ce.detach())
-            if not math.isfinite(value):
-                raise RuntimeError('non-finite planning objective')
-            exact = goal_logits.argmax(-1).eq(targets).all(-1).float().mean()
-            history.append({'iteration': iteration, 'loss': value, 'goal_ce': value,
-                            'goal_exact_match': float(exact.detach())})
-            if value < best_loss:
-                best_loss = value
-                best_goal_ce = value
-                best_actions = actions.detach().clone()
-            if iteration < iterations:
-                optimizer.zero_grad(set_to_none=True)
-                goal_ce.backward()
-                torch.nn.utils.clip_grad_norm_([actions], 1.0)
-                optimizer.step()
-                synchronize_device(prompt.device.type)
-
-        with torch.no_grad():
-            best_logits = soft_compressor_rollout(model, initial, cache, best_actions, temperature)
-            tokens = best_logits.argmax(-1)
-            suffix = tokens[:, horizon-goal.numel():]
-        result = {'tokens': tokens.cpu(), 'goal_tokens': suffix.cpu(),
-                  'goal_exact_match': suffix.eq(targets).all(-1).float().mean().item(),
-                  'history': history, 'best_loss': best_loss, 'goal_ce': best_goal_ce,
-                  'temperature': temperature}
-        if return_logits:
-            result['logits'] = best_logits.detach().cpu()
-        return result
-    finally:
-        for parameter, flag in zip(model.parameters(), flags):
-            parameter.requires_grad_(flag)
-        model.train(training)
+    return training, flags
 
 
-def rollout(model, memory, actions, *, return_consistency=False):
-    """Recur through memories; optionally infer each transition's own mean action."""
-    memories, previous = [], []
-    for action in actions.unbind(1):
-        previous.append(memory)
-        memory = model.predict_features(memory, action)
-        memories.append(memory)
-    states = torch.stack(memories, 1)
-    logits = model.decode_memory(states)
-    if not return_consistency:
-        return logits
-    mean, _ = model.posterior(torch.stack(previous, 1), states, detach_inputs=False)
-    consistency = F.mse_loss(actions.float(), mean.float())
-    return logits, consistency
+def _restore_model(model, training, flags):
+    for parameter, flag in zip(model.parameters(), flags):
+        parameter.requires_grad_(flag)
+    model.train(training)
 
 
-def plan(model, prompt, goal, horizon=500, iterations=100, lr=0.05, seed=123, consistency_weight=1., return_logits=False):
+def _trim_prompt(prompt, context):
+    """Keep the most recent context tokens without an out-of-range negative slice."""
+    start = max(0, prompt.size(1) - context)
+    return prompt[:, start:].detach()
+
+
+def plan(model, prompt, goal, horizon=500, iterations=100, lr=0.05, seed=123,
+         return_logits=False):
+    """Optimize terminal goal-memory distance for action heads, goal CE otherwise."""
+    if model.config.planning_mode == 'straight_through':
+        from nanochat.st_planning import st_plan
+        return st_plan(model, prompt, goal, horizon=horizon, iterations=iterations,
+                       lr=lr, seed=seed, return_logits=return_logits)
     if not math.isfinite(lr) or lr <= 0:
         raise ValueError('planning lr must be finite and positive')
-    if not math.isfinite(consistency_weight) or consistency_weight < 0:
-        raise ValueError('consistency_weight must be finite and nonnegative')
     if goal.ndim != 1 or goal.numel() < 1 or horizon < goal.numel() or iterations < 1:
         raise ValueError('goal must be nonempty; horizon >= goal length; iterations >= 1')
     if prompt.ndim != 2 or prompt.size(1) < 1:
         raise ValueError('prompt must be [batch, nonempty sequence]')
-    training = model.training
-    flags = [p.requires_grad for p in model.parameters()]
-    model.eval()
-    for p in model.parameters():
-        p.requires_grad_(False)
+    if horizon >= model.config.sequence_len:
+        raise ValueError('planning horizon must leave one context position for the prompt')
+    training, flags = _freeze_model(model)
     try:
         with torch.no_grad():
-            start=max(0,prompt.size(1)-model.config.sequence_len)
-            states = model.encode(prompt[:, start:])
-            initial = states[:, states.size(1)-1].detach()
-        actions = torch.nn.Parameter(sample_actions(initial.size(0), horizon, model.config.action_dim,
-                                                    device=initial.device, seed=seed))
-        targets = goal[None].expand(initial.size(0), -1)
-        optimizer = torch.optim.Adam([actions], lr=lr)
-        history, best_loss, best_actions = [], float('inf'), None
-        for i in range(iterations+1):
-            with torch.set_grad_enabled(i < iterations):
-                if consistency_weight:
-                    logits, consistency = rollout(model, initial, actions, return_consistency=True)
-                else:
-                    logits = rollout(model, initial, actions)
-                    consistency = logits.new_zeros(())
-                goal_ce = F.cross_entropy(logits[:, horizon-goal.numel():].flatten(0, 1), targets.flatten())
-                loss = goal_ce + consistency_weight*consistency
-            value = float(loss.detach())
-            if not math.isfinite(value):
-                raise RuntimeError('non-finite planning objective')
-            exact = logits[:, horizon-goal.numel():].argmax(-1).eq(targets).all(-1).float().mean()
-            history.append({'iteration': i, 'loss': value, 'goal_ce': float(goal_ce.detach()), 'inverse_consistency': float(consistency.detach()),
-                            'consistency_penalty': float(consistency_weight*consistency.detach()), 'goal_exact_match': float(exact)})
-            if value < best_loss:
-                best_loss, best_actions = value, actions.detach().clone()
-                best_goal_ce, best_consistency = float(goal_ce.detach()), float(consistency.detach())
-            if i < iterations:
-                optimizer.zero_grad(set_to_none=True)
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_([actions], 1.)
-                optimizer.step()
-                synchronize_device(initial.device.type)
+            context = model.config.sequence_len - horizon
+            memory = model.encode(_trim_prompt(prompt, context))[:, -1].detach()
+        optimized = _optimize_actions(model, memory, goal, horizon, iterations, lr, seed)
         with torch.no_grad():
-            logits = rollout(model, initial, best_actions)
+            logits = rollout(model, memory, optimized['actions'])
             tokens = logits.argmax(-1)
-            suffix = tokens[:, horizon-goal.numel():]
-        result = {'tokens': tokens.cpu(), 'goal_tokens': suffix.cpu(), 'goal_exact_match': suffix.eq(targets).all(-1).float().mean().item(),
-                'history': history, 'best_loss': best_loss, 'goal_ce': best_goal_ce,
-                'inverse_consistency': best_consistency, 'consistency_penalty': consistency_weight*best_consistency}
+            goal_tokens = tokens[:, -goal.numel():]
+            targets = goal[None].expand(memory.size(0), -1)
+            exact = goal_tokens.eq(targets).all(-1).float().mean()
+        result = {'tokens': tokens.cpu(), 'goal_tokens': goal_tokens.cpu(),
+                  'goal_exact_match': exact.item(), 'history': optimized['history'],
+                  'best_loss': optimized['loss'], 'goal_loss': optimized['loss'],
+                  'goal_objective': optimized['metric_name'],
+                  optimized['metric_name']: optimized['loss']}
         if return_logits:
             result['logits'] = logits.detach().cpu()
         return result
     finally:
-        for p, flag in zip(model.parameters(), flags):
-            p.requires_grad_(flag)
-        model.train(training)
+        _restore_model(model, training, flags)
+
+
+def mpc_plan(model, prompt, goal, horizon=50, execute_steps=5, iterations=100,
+             lr=0.05, seed=123, return_logits=False):
+    """Replan with predictor-only imagined rollouts and execute token blocks.
+
+    The compressor encodes the real prompt once and then only the tokens that
+    MPC actually commits. Action-head planning also encodes the goal once in a
+    separate context and minimizes terminal-memory SmoothL1. Imagined future
+    states always use the predictor alone.
+    """
+    if model.config.planning_mode == 'straight_through':
+        from nanochat.st_planning import st_plan
+        return st_plan(model, prompt, goal, horizon=horizon, execute_steps=execute_steps,
+                       iterations=iterations, lr=lr, seed=seed, return_logits=return_logits)
+    if not 1 <= execute_steps <= horizon or not 0 < goal.numel() <= horizon:
+        raise ValueError('invalid execution horizon or goal length')
+    if prompt.ndim != 2 or prompt.size(1) < 1 or goal.ndim != 1 or iterations < 1:
+        raise ValueError('invalid prompt, goal or iterations')
+    if not math.isfinite(lr) or lr <= 0:
+        raise ValueError('planning lr must be finite and positive')
+    if horizon >= model.config.sequence_len:
+        raise ValueError('planning horizon must leave one context position for the prompt')
+
+    training, flags = _freeze_model(model)
+    try:
+        from nanochat.engine import KVCache
+
+        context = model.config.sequence_len - horizon
+        prompt = _trim_prompt(prompt, context)
+        cache = KVCache(batch_size=prompt.size(0), num_heads=model.config.n_kv_head,
+                        seq_len=prompt.size(1) + horizon,
+                        head_dim=model.config.n_embd // model.config.n_head,
+                        num_layers=model.config.n_layer, device=prompt.device,
+                        dtype=model.transformer.wte.weight.dtype)
+        with torch.no_grad():
+            initial = model.encode(prompt, kv_cache=cache)[:, -1].detach()
+            goal_memory = (encode_goal_memory(model, goal, prompt.size(0))
+                           if model.config.head_source == 'action' else None)
+
+        generated, executed_logits, rounds, history = [], [], [], []
+        warm, previous_count = None, 0
+        initial_loss = None
+        best_loss = float('inf')
+        for start in range(0, horizon, execute_steps):
+            remaining = horizon - start
+            count = min(execute_steps, remaining)
+            round_goal = goal if remaining >= goal.numel() else goal[-remaining:]
+            action_init = None
+            if warm is None:
+                round_seed = seed + start
+            else:
+                action_init = warm[:, previous_count:].detach().clone()
+                round_seed = seed + start
+            optimized = _optimize_actions(model, initial, round_goal, remaining, iterations, lr,
+                                          round_seed, action_init=action_init,
+                                          round_index=len(rounds), goal_memory=goal_memory)
+            actions = optimized['actions']
+            initial_loss = optimized['initial_loss'] if initial_loss is None else initial_loss
+            best_loss = optimized['loss']
+            history.extend([{'round': len(rounds), **item} for item in optimized['history']])
+            with torch.no_grad():
+                for index in range(count):
+                    action = actions[:, index]
+                    logits = model.predict_logits(initial, action)
+                    token = logits.argmax(-1)
+                    executed_logits.append(logits)
+                    generated.append(token)
+                    # Update only the real state, using the inference KV cache.
+                    initial = model.encode(token[:, None], kv_cache=cache)[:, -1].detach()
+            rounds.append({'start': start, 'horizon': remaining, 'executed': count,
+                           'initial_loss': optimized['initial_loss'],
+                           optimized['metric_name']: optimized['loss']})
+            warm, previous_count = actions, count
+
+        tokens = torch.stack(generated, dim=1)
+        goal_tokens = tokens[:, -goal.numel():]
+        targets = goal[None].expand(tokens.size(0), -1)
+        exact = goal_tokens.eq(targets).all(-1).float().mean()
+        result = {'tokens': tokens.cpu(), 'goal_tokens': goal_tokens.cpu(),
+                  'goal_exact_match': exact.item(), 'initial_loss': initial_loss,
+                  'goal_loss': best_loss, 'goal_objective': optimized['metric_name'],
+                  optimized['metric_name']: best_loss, 'best_loss': best_loss,
+                  'round_history': rounds, 'history': history}
+        if return_logits:
+            result['logits'] = torch.stack(executed_logits, dim=1).detach().cpu()
+        return result
+    finally:
+        _restore_model(model, training, flags)
 
 
 def sample_actions(batch_size, horizon, action_dim, *, device, seed=123):
-    """Independent standard-normal initialization at every rollout step."""
+    """Independently initialize all candidate actions from N(0, I)."""
     device = torch.device(device)
-    rng_device = "cpu" if device.type == "xla" else device
+    rng_device = 'cpu' if device.type == 'xla' else device
     generator = torch.Generator(device=rng_device).manual_seed(seed)
     return torch.randn(batch_size, horizon, action_dim, generator=generator,
                        device=rng_device).to(device)

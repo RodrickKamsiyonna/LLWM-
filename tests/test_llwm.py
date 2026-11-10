@@ -69,28 +69,22 @@ def test_action_encoder_halving():
     assert encoder(torch.randn(2,3,512)).shape == (2,3,64)
 
 
-def test_soft_compressor_planner_uses_differentiable_kv_and_keeps_model_frozen():
-    from nanochat.engine import KVCache
-    from nanochat.planning import plan_soft_compressor, soft_compressor_rollout
+def test_predictor_only_mpc_reuses_compressor_cache_for_executed_tokens():
+    from nanochat.planning import mpc_plan
     model=make_model()
     prompt=torch.tensor([[1,2,3]])
-    cache=KVCache(batch_size=1,num_heads=model.config.n_kv_head,seq_len=7,
-                  head_dim=model.config.n_embd//model.config.n_head,
-                  num_layers=model.config.n_layer,device=prompt.device,
-                  dtype=model.transformer.wte.weight.dtype)
-    with torch.no_grad():
-        initial=model.encode(prompt,kv_cache=cache)[:,-1:].detach()
-    actions=torch.randn(1,4,model.config.action_dim,requires_grad=True)
-    logits=soft_compressor_rollout(model,initial,cache,actions)
-    assert logits.shape==(1,4,model.config.vocab_size)
-    grad=torch.autograd.grad(logits[:,-1].square().mean(),actions)[0]
-    assert torch.isfinite(grad).all()
-
+    calls=[]
+    hook=model.transformer.h[0].register_forward_hook(lambda module,args,out: calls.append(args[0].shape[1]))
     weights={name:p.detach().clone() for name,p in model.named_parameters()}
-    result=plan_soft_compressor(model,prompt,torch.tensor([4]),horizon=4,iterations=2,return_logits=True)
+    result=mpc_plan(model,prompt,torch.tensor([4]),horizon=4,execute_steps=2,
+                    iterations=2,return_logits=True)
+    hook.remove()
     assert result['logits'].shape==(1,4,model.config.vocab_size)
     assert result['tokens'].shape==(1,4)
-    assert result['best_loss']==min(item['goal_ce'] for item in result['history'])
+    assert [item['executed'] for item in result['round_history']]==[2,2]
+    # One prompt prefill and one compressor call per committed token, independent
+    # of the number of imagined predictor rollouts and optimization iterations.
+    assert len(calls)==5
     assert model.training
     for name,p in model.named_parameters():
         assert p.requires_grad and p.grad is None
@@ -98,24 +92,139 @@ def test_soft_compressor_planner_uses_differentiable_kv_and_keeps_model_frozen()
 
 
 def test_reference_losses_shifted_memory_and_gradients():
-    model = make_model(target_kl=0.2,kl_lambda=0.3,ce_weight=0.7,memory_weight=0.4,memory_loss='mse')
+    model = make_model(target_kl=0.2,kl_lambda=0.3,ce_weight=0.7,memory_weight=0.4,
+                       memory_loss='mse',prediction_horizon=1)
     idx,targets = batch()
     seen = []
     hook = model.predictor_norm.register_forward_hook(lambda module,args,out: seen.append(out))
     values = model(idx,targets,return_loss_components=True)
     hook.remove()
     with torch.no_grad():
+        current_logits = model.decode_memory(model.encode(idx))
+        current_token_ce = F.cross_entropy(current_logits.flatten(0,1),idx.flatten(),ignore_index=-1)
+    torch.testing.assert_close(values['ce'],current_token_ce)
+    with torch.no_grad():
         next_memory = model.encode(torch.cat((idx,targets[:,-1:]),dim=1))[:,1:]
     torch.testing.assert_close(values['memory_loss'],F.mse_loss(seen[0].float(),next_memory.float()))
     expected = 0.7*values['ce'] + 0.4*values['memory_loss'] + 0.3*F.relu(values['kl_total']-0.2).square()
     torch.testing.assert_close(values['loss'],expected)
-    assert set(values) == {'loss','ce','memory_loss','kl','kl_total','kl_excess','kl_penalty'}
+    assert set(values) == {'loss','ce','ce_excess','ce_penalty','memory_loss','kl','kl_total','kl_excess','kl_penalty'}
     values['loss'].backward()
     for name,p in model.named_parameters():
         assert p.grad is not None, name
         assert torch.isfinite(p.grad).all(), name
     for module in (model.compressor,model.action_encoder,model.predictor,model.llm_head):
         assert any(p.grad.abs().sum() > 0 for p in module.parameters())
+
+
+@pytest.mark.parametrize('threshold,active', [(2.0, True), (100.0, False)])
+@pytest.mark.parametrize('power', [1, 2])
+def test_ce_threshold_controls_token_head_gradient(threshold, active, power):
+    model = make_model(ce_threshold=threshold, ce_weight=1.0,
+                       ce_power=power, memory_weight=0.0, kl_lambda=0.0, head_training='joint')
+    idx, targets = batch()
+    values = model(idx, targets, return_loss_components=True)
+    torch.testing.assert_close(values['ce_excess'], F.relu(values['ce'] - threshold))
+    torch.testing.assert_close(values['ce_penalty'], values['ce_excess'].pow(power))
+    torch.testing.assert_close(values['loss'], values['ce_penalty'])
+    values['loss'].backward()
+    assert bool(model.llm_head.weight.grad.abs().sum() > 0) == active
+
+
+def test_standard_kl_penalizes_below_budget_and_ignores_target():
+    model = make_model(kl_mode='standard', kl_lambda=1e-3, target_kl=1e6,
+                       ce_weight=0.0, memory_weight=0.0)
+    idx, targets = batch()
+    values = model(idx, targets, return_loss_components=True)
+    assert 0 < values['kl_total'].item() < model.config.target_kl
+    torch.testing.assert_close(values['kl_penalty'], 1e-3 * values['kl_total'])
+    torch.testing.assert_close(values['loss'], values['kl_penalty'])
+    assert values['kl_excess'].item() == 0
+    values['loss'].backward()
+    assert any(p.grad is not None and p.grad.abs().sum() > 0
+               for p in model.action_encoder.parameters())
+
+
+@pytest.mark.parametrize('head_training', ['joint', 'detached'])
+def test_predictor_head_decodes_first_forecast_against_next_tokens(head_training):
+    model = make_model(head_source='predictor', head_training=head_training,
+                       prediction_horizon=4, ce_weight=1.0, memory_weight=0.0,
+                       kl_lambda=0.0, ce_threshold=0.0, ce_power=1)
+    idx, targets = batch()
+    seen = []
+    hook = model.predictor_norm.register_forward_hook(lambda module,args,out: seen.append(out))
+    values = model(idx, targets, return_loss_components=True)
+    hook.remove()
+    assert len(seen) == 4
+    expected = F.cross_entropy(model.decode_memory(seen[0]).flatten(0,1), targets.flatten())
+    torch.testing.assert_close(values['ce'], expected)
+    torch.testing.assert_close(values['loss'], values['ce'])
+    values['loss'].backward()
+    for module in (model.predictor, model.compressor, model.action_encoder):
+        active = any(p.grad is not None and p.grad.abs().sum() > 0 for p in module.parameters())
+        assert active == (head_training == 'joint')
+    assert any(p.grad is not None and p.grad.abs().sum() > 0 for p in model.llm_head_mlp.parameters())
+    with torch.no_grad():
+        memory = model.encode(idx)
+        expected_prior = model.predict_logits(memory, torch.zeros(*memory.shape[:-1], model.config.action_dim))
+        torch.testing.assert_close(model.eval()(idx), expected_prior)
+
+
+def test_action_head_uses_same_action_and_next_token_alignment():
+    model = make_model(head_source='action', head_training='joint', prediction_horizon=4,
+                       target_kl=2.0, kl_lambda=3.0)
+    idx, targets = batch()
+    predicted_actions, decoded_actions = [], []
+    hooks = [model.predictor[0].register_forward_pre_hook(
+                 lambda module,args: predicted_actions.append(args[1])),
+             model.action_projection.register_forward_pre_hook(
+                 lambda module,args: decoded_actions.append(args[0]))]
+    values = model(idx, targets, return_loss_components=True)
+    for hook in hooks:
+        hook.remove()
+    assert len(predicted_actions) == 4 and len(decoded_actions) == 1
+    torch.testing.assert_close(decoded_actions[0].float(), predicted_actions[0].float())
+    expected = F.cross_entropy(model.decode_actions(predicted_actions[0]).flatten(0,1), targets.flatten())
+    torch.testing.assert_close(values['ce'], expected)
+    torch.testing.assert_close(values['loss'], values['ce'] + values['memory_loss']
+                               + 3 * F.relu(values['kl_total'] - 2).square())
+    values['ce'].backward(retain_graph=True)
+    for module in (model.action_encoder, model.action_projection, model.llm_head_mlp, model.llm_head):
+        assert any(p.grad is not None and p.grad.abs().sum() > 0 for p in module.parameters())
+    assert all(p.grad is None for p in model.predictor.parameters())
+    model.zero_grad(set_to_none=True)
+    values['loss'].backward()
+    for module in (model.compressor, model.predictor):
+        assert any(p.grad is not None and p.grad.abs().sum() > 0 for p in module.parameters())
+    optimizer = model.setup_optimizer()
+    grouped = [p for group in optimizer.param_groups for p in group['params']]
+    assert len(grouped) == len(set(grouped)) == len(list(model.parameters()))
+
+
+def test_action_head_mpc_uses_goal_memory_and_decodes_only_executed_actions():
+    from nanochat.planning import mpc_plan
+    model = make_model(head_source='action', head_training='joint')
+    prompt, goal = torch.tensor([[1,2,3]]), torch.tensor([4,5])
+    calls, decodes = [], []
+    hooks = [model.transformer.h[0].register_forward_hook(
+                 lambda module,args,out: calls.append(args[0].shape[1])),
+             model.action_projection.register_forward_pre_hook(
+                 lambda module,args: decodes.append(args[0].shape))]
+    weights = {name:p.detach().clone() for name,p in model.named_parameters()}
+    result = mpc_plan(model, prompt, goal, horizon=4, execute_steps=2,
+                      iterations=3, return_logits=True)
+    for hook in hooks:
+        hook.remove()
+    assert calls == [3,2,1,1,1,1]  # prompt, goal, then committed tokens only
+    assert len(decodes) == 4  # optimization uses memories, never vocabulary logits
+    assert result['goal_objective'] == 'goal_memory_loss' and 'goal_ce' not in result
+    assert result['tokens'].shape == (1,4) and result['logits'].shape == (1,4,16)
+    assert [r['executed'] for r in result['round_history']] == [2,2]
+    assert all(r['goal_memory_loss'] <= r['initial_loss'] for r in result['round_history'])
+    assert model.training
+    for name,p in model.named_parameters():
+        assert p.requires_grad and p.grad is None
+        torch.testing.assert_close(p, weights[name])
 
 
 def test_posterior_detaches_memories():
@@ -138,7 +247,7 @@ def test_no_whole_predictor_residual():
 
 
 def test_all_ignored_targets_return_finite_zero():
-    model = make_model()
+    model = make_model(head_source='predictor')
     idx,targets = batch()
     targets = torch.full_like(targets,-1)
     values = model(idx,targets,return_loss_components=True)
@@ -162,7 +271,7 @@ def test_eval_and_rl_use_causal_prior():
 
 
 def test_optimizer_coverage_and_skipping_posterior_for_rl():
-    model = make_model()
+    model = make_model(head_source='predictor')
     optimizer = model.setup_optimizer()
     params = [p for g in optimizer.param_groups for p in g['params']]
     assert len(params) == len(set(params)) == len(list(model.parameters()))

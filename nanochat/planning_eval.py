@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import math
 import torch
 from torch.nn import functional as F
-from nanochat.planning import plan
+from nanochat.planning import mpc_plan as plan
 
 
 @dataclass(frozen=True)
@@ -11,16 +11,14 @@ class PlanningOptions:
     goal: str = '.'
     iterations: int = 100
     lr: float = 0.05
-    consistency_weight: float = 1.0
+    execute_steps: int = 5
     seed: int = 123
 
     def __post_init__(self):
-        if not self.goal or self.iterations < 1:
-            raise ValueError('planning needs a nonempty goal and positive iterations')
+        if not self.goal or self.iterations < 1 or self.execute_steps < 1:
+            raise ValueError('planning needs a nonempty goal, positive iterations and positive execute steps')
         if not math.isfinite(self.lr) or self.lr <= 0:
             raise ValueError('planning lr must be finite and positive')
-        if not math.isfinite(self.consistency_weight) or self.consistency_weight < 0:
-            raise ValueError('planning consistency weight must be finite and nonnegative')
 
 
 def add_planning_args(parser, max_new_tokens=16):
@@ -31,7 +29,8 @@ def add_planning_args(parser, max_new_tokens=16):
     parser.add_argument('--plan-goal', default='.', help='planning goal suffix; never a benchmark answer')
     parser.add_argument('--plan-iterations', type=int, default=100)
     parser.add_argument('--plan-lr', type=float, default=0.05)
-    parser.add_argument('--plan-consistency-weight', type=float, default=1.0)
+    parser.add_argument('--plan-execute-steps', type=int, default=5,
+                        help='tokens to execute before replanning the remaining horizon')
     parser.add_argument('--plan-seed', type=int, default=123)
 
 
@@ -46,8 +45,8 @@ def planning_for_model(model, args=None):
         return PlanningOptions()
     if args.eval_max_new_tokens < 1:
         raise ValueError('eval-max-new-tokens must be positive')
-    return PlanningOptions(args.plan_goal, args.plan_iterations, args.plan_lr,
-                           args.plan_consistency_weight, args.plan_seed)
+    return PlanningOptions(goal=args.plan_goal, iterations=args.plan_iterations, lr=args.plan_lr,
+                           execute_steps=args.plan_execute_steps, seed=args.plan_seed)
 
 
 def planned_completion(model, tokenizer, prompt, max_new_tokens, options, *, num_samples=1, seed=None):
@@ -60,9 +59,9 @@ def planned_completion(model, tokenizer, prompt, max_new_tokens, options, *, num
         raise ValueError('planning goal token count must fit the allowed output-token budget')
     goal = torch.tensor(goal_ids, dtype=torch.long, device=device)
     return plan(model, prompt_ids, goal, horizon=max_new_tokens,
+                execute_steps=min(options.execute_steps, max_new_tokens),
                 iterations=options.iterations, lr=options.lr,
-                seed=options.seed if seed is None else seed,
-                consistency_weight=options.consistency_weight, return_logits=True)
+                seed=options.seed if seed is None else seed, return_logits=True)
 
 
 def planned_continuation_scores(model, tokenizer, tokens, starts, ends, max_new_tokens, options):
@@ -95,11 +94,7 @@ def planned_continuation_scores(model, tokenizer, tokens, starts, ends, max_new_
 
 
 class PlanningEngine:
-    """generate_batch adapter for evaluation; rolls out exactly the token budget.
-
-    Planning decodes latent rollouts, with no Python-tool execution or token
-    sampling: num_samples selects independent Gaussian action initializations.
-    """
+    """generate_batch adapter for predictor-only receding-horizon planning."""
     def __init__(self, model, tokenizer, options):
         self.model, self.tokenizer, self.options = model, tokenizer, options
 

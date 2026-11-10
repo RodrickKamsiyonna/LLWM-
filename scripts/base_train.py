@@ -59,11 +59,30 @@ parser.add_argument("--fp8-recipe", type=str, default="tensorwise", choices=["ro
 # Model architecture
 parser.add_argument("--model-type", choices=["llwm", "gpt"], default="llwm", help="architecture for new training runs")
 parser.add_argument("--predictor-layers", type=int, default=None, help="LLWM predictor depth (default: ceil(3 * depth / 4))")
-parser.add_argument("--action-dim", type=int, default=128)
+parser.add_argument("--action-dim", type=int, default=8)
+parser.add_argument('--token-objective', choices=['ce', 'embedding_mse'], default='ce')
+parser.add_argument('--head-layers', type=int, default=2)
+parser.add_argument('--sigreg-weight', type=float, default=0.)
+parser.add_argument('--sigreg-projections', type=int, default=1024)
+parser.add_argument('--sigreg-knots', type=int, default=17)
 parser.add_argument("--action-layers", type=int, default=2)
+parser.add_argument("--prediction-horizon", type=int, default=4,
+                    help="number of recursively predicted future memory/token steps per start position")
+parser.add_argument("--head-training", choices=["joint", "detached"], default="detached",
+                    help="joint lets CE train the predictor; detached trains the vocabulary head from stopped memories")
+parser.add_argument("--head-source", choices=["compressor", "predictor", "action"], default="compressor",
+                    help="action decodes projected actions; predictor decodes next memories; compressor reconstructs current tokens")
+parser.add_argument('--action-conditioning', choices=['memory_pair', 'next_token'], default='memory_pair')
+parser.add_argument('--planning-mode', choices=['predictor', 'straight_through'], default='predictor')
 parser.add_argument("--target-kl", type=float, default=1.0, help="LLWM total action KL budget per valid token, in nats")
 parser.add_argument("--kl-lambda", type=float, default=1.0)
-parser.add_argument("--ce-weight", type=float, default=1.0)
+parser.add_argument("--kl-mode", choices=("target", "standard"), default="target",
+                    help="standard penalizes total action KL directly; target penalizes squared budget excess")
+parser.add_argument("--ce-weight", "--ce_weight", dest="ce_weight", type=float, default=1.0)
+parser.add_argument("--ce-threshold", type=float, default=0.0,
+                    help="CE objective is relu(mean CE - threshold), per rank/microbatch")
+parser.add_argument("--ce-power", type=int, choices=(1, 2), default=1,
+                    help="raise the thresholded mean CE to this power")
 parser.add_argument("--memory-weight", type=float, default=1.0)
 parser.add_argument("--memory-loss", choices=["smooth_l1", "mse"], default="smooth_l1")
 parser.add_argument("--depth", type=int, default=20, help="depth of the Transformer model")
@@ -126,6 +145,10 @@ parser.add_argument('--resume-extend-schedule', action='store_true',
 parser.add_argument('--stop-after-step', type=int, default=-1, help='qualification cutoff; does NOT change the total schedule or token budget')
 parser.add_argument('--planning-every', type=int, default=-1, help='independent periodic goal planning; -1 disables')
 parser.add_argument('--planning-prompt', default='The capital of France is')
+parser.add_argument('--planning-prompt-2', default=None,
+                    help='optional second prompt for a separate planning task')
+parser.add_argument('--planning-goal-2', default=None,
+                    help='goal for the optional second planning prompt; defaults to --plan-goal')
 args = parser.parse_args()
 args.run_id = args.run_id or ('local-' + uuid.uuid4().hex[:12])
 if args.resume_latest and args.resume_from_step >= 0:
@@ -230,10 +253,17 @@ def build_model_meta(depth):
     model_dim = ((base_dim + args.head_dim - 1) // args.head_dim) * args.head_dim
     num_heads = model_dim // args.head_dim
     config_cls = LLWMConfig if args.model_type == "llwm" else GPTConfig
-    extra = dict(predictor_layers=args.predictor_layers, action_dim=args.action_dim,
+    extra = dict(token_objective=args.token_objective, head_layers=args.head_layers, sigreg_weight=args.sigreg_weight,
+                 sigreg_projections=args.sigreg_projections, sigreg_knots=args.sigreg_knots,
+                 predictor_layers=args.predictor_layers, action_dim=args.action_dim,
                  action_layers=args.action_layers, target_kl=args.target_kl,
-                 kl_lambda=args.kl_lambda, ce_weight=args.ce_weight,
-                 memory_weight=args.memory_weight, memory_loss=args.memory_loss) if args.model_type == "llwm" else {}
+                 kl_lambda=args.kl_lambda, kl_mode=args.kl_mode,
+                 ce_weight=args.ce_weight, ce_threshold=args.ce_threshold,
+                 ce_power=args.ce_power,
+                 memory_weight=args.memory_weight, memory_loss=args.memory_loss,
+                 prediction_horizon=args.prediction_horizon, head_training=args.head_training,
+                 head_source=args.head_source, action_conditioning=args.action_conditioning,
+                 planning_mode=args.planning_mode) if args.model_type == "llwm" else {}
     config = config_cls(
         sequence_len=args.max_seq_len, vocab_size=vocab_size,
         n_layer=depth, n_head=num_heads, n_kv_head=num_heads, n_embd=model_dim,
@@ -658,13 +688,39 @@ while True:
             print0(tokenizer.decode(sample[0]))
         model.train()
 
-    if planning_due and master_process:
-        from nanochat.planning_eval import PlanningOptions, planned_completion
-        options=planning or PlanningOptions(args.plan_goal,args.plan_iterations,args.plan_lr,args.plan_consistency_weight,args.plan_seed)
-        prompt_ids=tokenizer(args.planning_prompt,prepend='<|bos|>')
-        with evaluation_phase('planning_evaluation'):
-            planned=planned_completion(orig_model,tokenizer,prompt_ids,args.eval_max_new_tokens,options)
-            print0('Planning sample: '+tokenizer.decode(planned['tokens'][0].tolist()))
+    if planning_due:
+        # Planning runs only on rank 0. Keep every other rank out of the next
+        # training collectives until planning has finished, or ranks diverge.
+        if ddp_world_size > 1:
+            with diag.span('planning_barrier_before'):
+                require_equal(step, f'planning-before-{step}')
+        try:
+            if master_process:
+                from nanochat.planning_eval import PlanningOptions, planned_completion
+                base_options=planning or PlanningOptions(goal=args.plan_goal, iterations=args.plan_iterations,
+                                                         lr=args.plan_lr, execute_steps=args.plan_execute_steps,
+                                                         seed=args.plan_seed)
+                tasks=[(args.planning_prompt, args.plan_goal)]
+                if args.planning_prompt_2:
+                    tasks.append((args.planning_prompt_2, args.planning_goal_2 or args.plan_goal))
+                model.eval()
+                with evaluation_phase('planning_evaluation'), disable_fp8(orig_model):
+                    for task_index, (prompt_text, goal_text) in enumerate(tasks, start=1):
+                        print0(f'Planning task {task_index} begin: prompt={prompt_text!r} '
+                               f'goal={goal_text!r}', flush=True)
+                        options=PlanningOptions(goal=goal_text, iterations=base_options.iterations,
+                                                lr=base_options.lr, execute_steps=base_options.execute_steps,
+                                                seed=base_options.seed)
+                        prompt_ids=tokenizer(prompt_text,prepend='<|bos|>')
+                        planned=planned_completion(orig_model,tokenizer,prompt_ids,args.eval_max_new_tokens,options)
+                        print0(f'Planning task {task_index} prompt={prompt_text!r} goal={goal_text!r}: '
+                               +tokenizer.decode(planned['tokens'][0].tolist()))
+                        print0(f'Planning task {task_index} MPC rounds: '+json.dumps(planned['round_history']))
+                model.train()
+        finally:
+            if ddp_world_size > 1:
+                with diag.span('planning_barrier_after'):
+                    require_equal(step, f'planning-after-{step}')
 
     # termination conditions (TODO: possibly also add loss explosions etc.)
     if last_step:
@@ -703,6 +759,20 @@ while True:
     train_loss = train_loss_sum / grad_accum_steps
     if loss_component_sums is not None:
         loss_components = {key: value / grad_accum_steps for key, value in loss_component_sums.items()}
+
+    # Materialize the small reporting scalars before optimizer updates are
+    # added to the pending XLA graph. Otherwise a host transfer here can force
+    # one oversized graph containing both the accumulated loss reporting and
+    # all optimizer updates, exhausting HBM on large TPU models.
+    component_names = ('ce', 'ce_excess', 'ce_penalty', 'memory_loss', 'kl', 'kl_total', 'kl_excess', 'kl_penalty', 'sigreg', 'sigreg_penalty', 'embedding_mse')
+    metric_tensors = [train_loss.detach().float()]
+    if loss_components is not None:
+        metric_tensors.extend(loss_components[name].detach().float() for name in component_names)
+    metric_values = torch.stack(metric_tensors).cpu().tolist()
+    train_loss_f = metric_values[0]
+    train_loss_components = dict(zip(component_names, metric_values[1:])) if loss_components is not None else {}
+    del metric_tensors, train_loss_sum, loss_component_sums, loss, train_loss, loss_components
+
     # step the optimizer
     lrm = get_lr_multiplier(step)
     muon_momentum = get_muon_momentum(step)
@@ -727,13 +797,6 @@ while True:
         with diag.span("optimizer_update"):
             optimizer.step()
     model.zero_grad(set_to_none=True)
-    component_names = ('ce', 'memory_loss', 'kl', 'kl_total', 'kl_excess', 'kl_penalty')
-    metric_tensors = [train_loss.detach().float()]
-    if loss_components is not None:
-        metric_tensors.extend(loss_components[name].detach().float() for name in component_names)
-    metric_values = torch.stack(metric_tensors).cpu().tolist() # one compact device-to-host transfer
-    train_loss_f = metric_values[0]
-    train_loss_components = dict(zip(component_names, metric_values[1:])) if loss_components is not None else {}
     with diag.span('step_synchronize',detail=True):
         synchronize()
     if args.xla_metrics_every>0 and (step+1)%args.xla_metrics_every==0:
@@ -777,8 +840,8 @@ while True:
             "train/mfu": mfu,
             "train/epoch": epoch,
         }
-        if loss_components is not None:
-            log_data.update({f"train/{key}": value.detach().item() for key, value in loss_components.items() if key != "loss"})
+        if train_loss_components:
+            log_data.update({f"train/{key}": value for key, value in train_loss_components.items()})
         wandb_run.log(log_data)
 
     # state update
