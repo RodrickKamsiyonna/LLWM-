@@ -19,7 +19,7 @@ CHAT_MAX_NEW_TOKENS="${CHAT_MAX_NEW_TOKENS:-128}"
 PLAN_GOAL="${PLAN_GOAL:-.}"
 PLAN_ITERATIONS="${PLAN_ITERATIONS:-20}"
 PLAN_LR="${PLAN_LR:-0.05}"
-PLAN_CONSISTENCY_WEIGHT="${PLAN_CONSISTENCY_WEIGHT:-1}"
+PLAN_EXECUTE_STEPS="${PLAN_EXECUTE_STEPS:-5}"
 PLAN_SEED="${PLAN_SEED:-123}"
 EVAL_MODE="${EVAL_MODE:-plan}"
 EVAL_TOKENS="${EVAL_TOKENS:-32768}"
@@ -29,14 +29,17 @@ CORE_METRIC_EVERY="${CORE_METRIC_EVERY:-1000}"
 SAMPLE_EVERY="${SAMPLE_EVERY:-250}"
 DATA_SHARDS="${DATA_SHARDS:-170}"
 
-LLWM_ARGS=(--model-type=llwm --action-dim="${ACTION_DIM:-128}" --action-layers="${ACTION_LAYERS:-2}"
-    --target-kl="${TARGET_KL:-1}" --kl-lambda="${KL_LAMBDA:-1}" --ce-weight="${CE_WEIGHT:-1}"
+LLWM_ARGS=(--token-objective="${TOKEN_OBJECTIVE:-ce}" --head-layers="${HEAD_LAYERS:-2}" --sigreg-weight="${SIGREG_WEIGHT:-0}"
+    --sigreg-projections="${SIGREG_PROJECTIONS:-1024}" --sigreg-knots="${SIGREG_KNOTS:-17}" --model-type=llwm --action-dim="${ACTION_DIM:-8}" --action-layers="${ACTION_LAYERS:-2}"
+    --prediction-horizon="${PREDICTION_HORIZON:-4}" --head-training="${HEAD_TRAINING:-detached}" --head-source="${HEAD_SOURCE:-compressor}"
+    --action-conditioning="${ACTION_CONDITIONING:-memory_pair}" --planning-mode="${PLANNING_MODE:-predictor}"
+    --target-kl="${TARGET_KL:-1}" --kl-lambda="${KL_LAMBDA:-1}" --kl-mode="${KL_MODE:-target}" --ce-weight="${CE_WEIGHT:-1}" --ce-threshold="${CE_THRESHOLD:-0}" --ce-power="${CE_POWER:-1}"
     --memory-weight="${MEMORY_WEIGHT:-1}" --memory-loss="${MEMORY_LOSS:-smooth_l1}")
 if [[ -n "${PREDICTOR_LAYERS:-}" ]]; then
     LLWM_ARGS+=(--predictor-layers="$PREDICTOR_LAYERS")
 fi
 PLAN_ARGS=(--eval-mode="$EVAL_MODE" --plan-goal="$PLAN_GOAL" --plan-iterations="$PLAN_ITERATIONS"
-    --plan-lr="$PLAN_LR" --plan-consistency-weight="$PLAN_CONSISTENCY_WEIGHT" --plan-seed="$PLAN_SEED")
+    --plan-lr="$PLAN_LR" --plan-execute-steps="$PLAN_EXECUTE_STEPS" --plan-seed="$PLAN_SEED")
 
 run_cmd() {
     if [[ "${DRY_RUN:-0}" == 1 ]]; then

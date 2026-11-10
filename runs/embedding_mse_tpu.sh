@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Single-host v6e-8 profile. Requires environment, tokenizer/data preflight and checkpoint root.
+set -euo pipefail
+: "${RUN_ID:?Set a fresh run identifier}"
+export ATTEMPT_ID="${ATTEMPT_ID:-${RUN_ID}-a1}"
+export EXPECTED_WORLD_SIZE=8 EXPECTED_LOCAL_DEVICES=8
+export DEPTH=15 PREDICTOR_LAYERS=6 ASPECT_RATIO=110 HEAD_DIM=128 WINDOW_PATTERN=L
+export ACTION_DIM=128 ACTION_LAYERS=9 ACTION_CONDITIONING=next_token
+export HEAD_SOURCE=predictor HEAD_TRAINING=joint HEAD_LAYERS=2
+export TOKEN_OBJECTIVE=embedding_mse PREDICTION_HORIZON=1 MEMORY_WEIGHT=0 SIGREG_WEIGHT=0
+export KL_MODE=target TARGET_KL=1 KL_LAMBDA=3
+export PLANNING_MODE=straight_through PLANNING_EVERY=1000 PLAN_ITERATIONS=100
+export PLAN_LR=0.001 PLAN_EXECUTE_STEPS=10 EVAL_MAX_NEW_TOKENS=20
+export PLANNING_PROMPT='What is the tallest mountain?' PLAN_GOAL=.
+export PLANNING_PROMPT_2='The traveler crossed the empty valley and found'
+export PLANNING_GOAL_2='a hidden village.'
+export NUM_ITERATIONS=6000 MAX_SEQ_LEN=1024 DEVICE_BATCH_SIZE=1 TOTAL_BATCH_SIZE=131072
+export SAVE_EVERY=500 CHECKPOINT_KEEP=1 EVAL_EVERY=-1 CORE_METRIC_EVERY=-1 SAMPLE_EVERY=-1
+export POST_EVAL=0 RUN_SFT=0 SKIP_SETUP=1 SKIP_DATA=1 WANDB_RUN=dummy
+exec bash "$(dirname -- "${BASH_SOURCE[0]}")/start_tpu_v4_16_tmux.sh"

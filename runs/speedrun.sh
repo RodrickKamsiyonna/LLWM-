@@ -16,6 +16,10 @@ RELIABILITY_ARGS=(--xla-sync-mode="${XLA_SYNC_MODE:-microstep}" --xla-metrics-ev
     --packing-policy="${PACKING_POLICY:-legacy_crop}" --checkpoint-keep="${CHECKPOINT_KEEP:-1}"
     --planning-every="${PLANNING_EVERY:--1}" --planning-prompt="${PLANNING_PROMPT:-The capital of France is}"
     --stop-after-step="${STOP_AFTER_STEP:--1}")
+if [[ -n "${PLANNING_PROMPT_2:-}" ]]; then
+    RELIABILITY_ARGS+=(--planning-prompt-2="$PLANNING_PROMPT_2"
+        --planning-goal-2="${PLANNING_GOAL_2:-$PLAN_GOAL}")
+fi
 [[ -z "${DATASET_MANIFEST:-}" ]] || RELIABILITY_ARGS+=(--dataset-manifest="$DATASET_MANIFEST")
 [[ -z "${RUN_ID:-}" ]] || RELIABILITY_ARGS+=(--run-id="$RUN_ID")
 [[ -z "${CHECKPOINT_DIR:-}" ]] || RELIABILITY_ARGS+=(--checkpoint-dir="$CHECKPOINT_DIR")

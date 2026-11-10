@@ -31,10 +31,18 @@ Default settings in [common.sh](common.sh):
 | `DEVICE_BATCH_SIZE` | `1` | Training sequences per replica |
 | `TOTAL_BATCH_SIZE` | `32768` | Global training tokens per update |
 | `NUM_ITERATIONS` | `1000` in speedrun | Pretraining updates; `-1` selects the data/parameter ratio |
-| `ACTION_DIM`, `ACTION_LAYERS` | `128`, `2` | Gaussian action bottleneck and encoder depth |
+| `ACTION_DIM`, `ACTION_LAYERS` | `8`, `2` | Configurable Gaussian action bottleneck and encoder depth |
+| `PREDICTION_HORIZON` | `4` | Recursive future-memory prediction steps used during training |
+| `HEAD_TRAINING` | `detached` | `detached` trains the head from predicted memories; `joint` also sends CE gradients through the predictor |
 | `PREDICTOR_LAYERS` | automatic | Optional predictor-depth override |
 | `TARGET_KL`, `KL_LAMBDA` | `1`, `1` | Per-token total KL budget and penalty weight |
 | `CE_WEIGHT`, `MEMORY_WEIGHT` | `1`, `1` | Training objective weights |
+| `CE_THRESHOLD` | `0` | Token objective: `relu(mean CE - threshold)` per rank/microbatch; `2` removes CE pressure below 2 nats. Logs retain raw `ce` and thresholded `ce_excess`. |
+| `CE_POWER` | `1` | `2` squares the thresholded CE. `ce_penalty` logs the resulting CE objective before `CE_WEIGHT`. |
+| `ACTION_CONDITIONING` | `memory_pair` | `next_token` uses current compressor latent + observed next-token embedding for the Gaussian posterior. Requires predictor head, `PREDICTION_HORIZON=1`, `MEMORY_WEIGHT=0`. |
+| `PLANNING_MODE` | `predictor` | `straight_through` feeds hard selected tokens back through the compressor and functional KV cache, with soft embedding gradients, to maximize goal-suffix likelihood. |
+| `HEAD_SOURCE` | `compressor` | `action` projects sampled actions to model width then decodes next tokens through MLP/vocabulary head. Planning minimizes SmoothL1 between the terminal predicted memory and a separately encoded goal memory, then decodes selected actions. `predictor` decodes the first predicted memory; `compressor` reconstructs current tokens. Multi-step memory prediction uses `PREDICTION_HORIZON`. |
+| `KL_MODE` | `target` | `standard` uses `KL_LAMBDA * kl_total`, summed over action dimensions and averaged over valid transitions; `TARGET_KL` is ignored. `kl_excess` is zero in this mode. |
 | `MEMORY_LOSS` | `smooth_l1` | `smooth_l1` or `mse` |
 | `EVAL_MODE` | `plan` | Planned evaluation; `prior` selects the diagnostic baseline |
 | `PLAN_GOAL` | `.` | Fixed planning suffix for CORE, samples, and ChatCORE |
@@ -42,7 +50,7 @@ Default settings in [common.sh](common.sh):
 | `CHAT_MAX_NEW_TOKENS` | `128` | SFT/standalone ChatCORE token budget **and planning horizon** |
 | `PLAN_ITERATIONS` | `20` | Action optimization updates per plan (CLI default is 100) |
 | `PLAN_LR` | `0.05` | Action optimizer learning rate |
-| `PLAN_CONSISTENCY_WEIGHT` | `1` | Inverse-dynamics consistency coefficient |
+| `PLAN_EXECUTE_STEPS` | `5` | MPC tokens committed before replanning the remaining horizon |
 | `PLAN_SEED` | `123` | Independent Gaussian action initialization seed |
 | `CORE_MAX_PER_TASK` | `16` | Questions per CORE task; `-1` selects all questions |
 | `CORE_METRIC_EVERY` | `1000` | Pretraining planned CORE interval; also runs at the end |
@@ -62,10 +70,12 @@ EVAL_MAX_NEW_TOKENS=64 CHAT_MAX_NEW_TOKENS=64 PLAN_ITERATIONS=20 \
 ```
 
 The period is an optimization goal, not a forced appended character or a known
-benchmark answer. Every action starts independently from a standard normal.
-The predictor rolls through latent memories; only actions are optimized, while
-model weights stay frozen. The horizon always equals that call's allowed output
-budget. A successful goal suffix does not imply a correct benchmark answer.
+benchmark answer. Every candidate action starts independently from a standard
+normal. Each MPC round imagines the remaining horizon with the predictor alone,
+optimizes actions against goal CE, executes a block, updates the live memory with
+the compressor KV cache, and replans. Model weights stay frozen. The horizon
+equals that call's allowed output budget. A successful goal suffix does not
+imply a correct benchmark answer.
 
 CORE keeps its normal prompts, few-shot demonstrations, candidate ranking and
 answer checks. It scores planned logits instead of zero-action logits. If a
@@ -75,10 +85,10 @@ Answers are used for scoring, never as action optimization goals. Planned CORE
 scores are marked as planned and are not the upstream standard CORE metric.
 BPB and RL's on-policy training log-probabilities still use the prior baseline.
 
-Planning runs many backward passes per evaluation question. These recipes limit
-question counts and use 20 planning updates to keep initial runs smaller. Increase
-question limits for a fuller evaluation. Long SFT horizons can produce large XLA
-compilations. No TPU throughput or memory-fit guarantee has been measured here.
+Planning runs backward passes per MPC round and evaluation question. These
+recipes limit question counts and use 20 planning updates to keep initial runs
+smaller. Increase question limits for fuller evaluation. No TPU throughput or
+memory-fit guarantee has been measured here.
 Global batch size must be divisible by
 `device_batch_size * max_seq_len * world_size`; increase `TOTAL_BATCH_SIZE` for
 large pods. Use the same prepared data/tokenizer and run the same launcher on each

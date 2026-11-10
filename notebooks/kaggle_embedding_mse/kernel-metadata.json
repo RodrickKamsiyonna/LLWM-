@@ -1,0 +1,15 @@
+{
+  "id": "YOUR_KAGGLE_USERNAME/llwm-embedding-mse-tpu",
+  "title": "LLWM Embedding MSE TPU Training",
+  "code_file": "llwm_embedding_mse.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_tpu": true,
+  "enable_internet": true,
+  "machine_shape": "TpuV5E8",
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": []
+}
