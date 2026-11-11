@@ -61,6 +61,8 @@ parser.add_argument("--model-type", choices=["llwm", "gpt"], default="llwm", hel
 parser.add_argument("--predictor-layers", type=int, default=None, help="LLWM predictor depth (default: ceil(3 * depth / 4))")
 parser.add_argument("--action-dim", type=int, default=8)
 parser.add_argument('--token-objective', choices=['ce', 'embedding_mse'], default='ce')
+parser.add_argument('--embedding-variance-weight', type=float, default=0.)
+parser.add_argument('--embedding-std-floor', type=float, default=0.8)
 parser.add_argument('--train-embedding-target', action='store_true', help='allow MSE gradients through the next-token target embedding lookup')
 parser.add_argument('--head-layers', type=int, default=2)
 parser.add_argument('--sigreg-weight', type=float, default=0.)
@@ -254,7 +256,7 @@ def build_model_meta(depth):
     model_dim = ((base_dim + args.head_dim - 1) // args.head_dim) * args.head_dim
     num_heads = model_dim // args.head_dim
     config_cls = LLWMConfig if args.model_type == "llwm" else GPTConfig
-    extra = dict(detach_embedding_target=not args.train_embedding_target, token_objective=args.token_objective, head_layers=args.head_layers, sigreg_weight=args.sigreg_weight,
+    extra = dict(embedding_variance_weight=args.embedding_variance_weight, embedding_std_floor=args.embedding_std_floor, detach_embedding_target=not args.train_embedding_target, token_objective=args.token_objective, head_layers=args.head_layers, sigreg_weight=args.sigreg_weight,
                  sigreg_projections=args.sigreg_projections, sigreg_knots=args.sigreg_knots,
                  predictor_layers=args.predictor_layers, action_dim=args.action_dim,
                  action_layers=args.action_layers, target_kl=args.target_kl,
@@ -765,7 +767,7 @@ while True:
     # added to the pending XLA graph. Otherwise a host transfer here can force
     # one oversized graph containing both the accumulated loss reporting and
     # all optimizer updates, exhausting HBM on large TPU models.
-    component_names = ('ce', 'ce_excess', 'ce_penalty', 'memory_loss', 'kl', 'kl_total', 'kl_excess', 'kl_penalty', 'sigreg', 'sigreg_penalty', 'embedding_mse')
+    component_names = ('ce', 'ce_excess', 'ce_penalty', 'memory_loss', 'kl', 'kl_total', 'kl_excess', 'kl_penalty', 'sigreg', 'sigreg_penalty', 'embedding_mse', 'embedding_variance', 'embedding_variance_penalty', 'embedding_rms')
     metric_tensors = [train_loss.detach().float()]
     if loss_components is not None:
         metric_tensors.extend(loss_components[name].detach().float() for name in component_names)

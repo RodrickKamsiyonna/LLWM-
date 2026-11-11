@@ -36,6 +36,8 @@ class LLWMConfig(GPTConfig):
     memory_weight: float = 1.0
     memory_loss: str = "smooth_l1"
     token_objective: str = "ce"
+    embedding_variance_weight: float = 0.0
+    embedding_std_floor: float = 0.8
     detach_embedding_target: bool = True
     head_layers: int = 2
     sigreg_weight: float = 0.0
@@ -43,6 +45,10 @@ class LLWMConfig(GPTConfig):
     sigreg_knots: int = 17
 
     def __post_init__(self):
+        if not math.isfinite(self.embedding_variance_weight) or self.embedding_variance_weight < 0:
+            raise ValueError("embedding_variance_weight must be finite and nonnegative")
+        if not math.isfinite(self.embedding_std_floor) or self.embedding_std_floor <= 0:
+            raise ValueError("embedding_std_floor must be finite and positive")
         if self.token_objective not in ("ce", "embedding_mse"):
             raise ValueError("invalid token objective")
         if self.token_objective == "embedding_mse" and self.action_conditioning != "next_token":
@@ -280,7 +286,19 @@ class LLWM(GPT):
                 mse = ((predicted_embedding - target_embedding).square().mean(-1) * valid).sum() / valid.sum().clamp(min=1)
                 components = self._loss_components(mse.new_zeros(()), mse.new_zeros(()), mean, log_std, valid)
                 components['embedding_mse'] = mse
-                components['loss'] = mse + components['kl_penalty']
+                # Across vocabulary rows: a constant embedding table has zero variance.
+                # FP32 moments avoid BF16 cancellation; no vocabulary covariance matrix.
+                table = self.transformer.wte.weight.float()
+                if self.config.embedding_variance_weight:
+                    variance = (table.square().mean(0) - table.mean(0).square()).clamp(min=0)
+                    std = (variance + 1e-4).sqrt()
+                    anti_collapse = F.relu(self.config.embedding_std_floor - std).square().mean()
+                else:
+                    anti_collapse = mse.new_zeros(())
+                components['embedding_variance'] = anti_collapse
+                components['embedding_variance_penalty'] = self.config.embedding_variance_weight * anti_collapse
+                components['embedding_rms'] = table.square().mean().sqrt().detach()
+                components['loss'] = mse + components['kl_penalty'] + components['embedding_variance_penalty']
                 return components
             predicted = self.predict_features(memory, action)
             logits = self.decode_memory(predicted, detach=self.config.head_training == 'detached')

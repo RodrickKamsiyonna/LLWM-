@@ -29,7 +29,7 @@ CORE_METRIC_EVERY="${CORE_METRIC_EVERY:-1000}"
 SAMPLE_EVERY="${SAMPLE_EVERY:-250}"
 DATA_SHARDS="${DATA_SHARDS:-170}"
 
-LLWM_ARGS=(--token-objective="${TOKEN_OBJECTIVE:-ce}" --head-layers="${HEAD_LAYERS:-2}" --sigreg-weight="${SIGREG_WEIGHT:-0}"
+LLWM_ARGS=(--embedding-variance-weight="${EMBEDDING_VARIANCE_WEIGHT:-0}" --embedding-std-floor="${EMBEDDING_STD_FLOOR:-0.8}" --token-objective="${TOKEN_OBJECTIVE:-ce}" --head-layers="${HEAD_LAYERS:-2}" --sigreg-weight="${SIGREG_WEIGHT:-0}"
     --sigreg-projections="${SIGREG_PROJECTIONS:-1024}" --sigreg-knots="${SIGREG_KNOTS:-17}" --model-type=llwm --action-dim="${ACTION_DIM:-8}" --action-layers="${ACTION_LAYERS:-2}"
     --prediction-horizon="${PREDICTION_HORIZON:-4}" --head-training="${HEAD_TRAINING:-detached}" --head-source="${HEAD_SOURCE:-compressor}"
     --action-conditioning="${ACTION_CONDITIONING:-memory_pair}" --planning-mode="${PLANNING_MODE:-predictor}"
