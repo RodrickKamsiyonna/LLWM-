@@ -376,7 +376,7 @@ class LLWM(GPT):
         ce_excess = F.relu(ce - self.config.ce_threshold)
         ce_penalty = ce_excess.square() if self.config.ce_power == 2 else ce_excess
         loss = self.config.ce_weight * ce_penalty + self.config.memory_weight * memory_loss + kl_penalty
-        return dict(embedding_mse=loss.new_zeros(()), sigreg=loss.new_zeros(()), sigreg_penalty=loss.new_zeros(()), loss=loss, ce=ce, ce_excess=ce_excess, ce_penalty=ce_penalty, memory_loss=memory_loss, kl=kl,
+        return dict(embedding_variance=loss.new_zeros(()), embedding_variance_penalty=loss.new_zeros(()), embedding_rms=loss.new_zeros(()), embedding_mse=loss.new_zeros(()), sigreg=loss.new_zeros(()), sigreg_penalty=loss.new_zeros(()), loss=loss, ce=ce, ce_excess=ce_excess, ce_penalty=ce_penalty, memory_loss=memory_loss, kl=kl,
                     kl_total=kl_total, kl_excess=kl_excess, kl_penalty=kl_penalty)
 
     def forward(self, idx, targets=None, kv_cache=None, loss_reduction="mean", *, return_loss_components=False):
