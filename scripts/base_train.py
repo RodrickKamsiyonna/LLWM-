@@ -146,7 +146,7 @@ parser.add_argument('--checkpoint-cache', help='per-host download cache (one opt
 parser.add_argument('--checkpoint-keep', type=int, default=1)
 parser.add_argument('--resume-latest', action='store_true')
 parser.add_argument('--resume-extend-schedule', action='store_true',
-                    help='allow a longer second training phase from a checkpoint saved exactly at its prior schedule end')
+                    help='extend the total budget from a compatible checkpoint; unfinished runs use the longer schedule, completed runs hold terminal schedule values')
 parser.add_argument('--stop-after-step', type=int, default=-1, help='qualification cutoff; does NOT change the total schedule or token budget')
 parser.add_argument('--planning-every', type=int, default=-1, help='independent periodic goal planning; -1 disables')
 parser.add_argument('--planning-prompt', default='The capital of France is')
@@ -540,12 +540,19 @@ if resuming:
         orig_model.load_state_dict(model_data,strict=True,assign=False)
         optimizer.load_state_dict(optimizer_data)
         del model_data,optimizer_data
+        schedule_extension_start = meta_data.get('loop_state', {}).get('schedule_extension_start')
         if args.resume_extend_schedule:
-            schedule_extension_start=int(checkpoint_manifest['contract']['num_iterations'])
-            if schedule_extension_start!=meta_data['step'] or num_iterations<=schedule_extension_start:
-                raise ValueError('--resume-extend-schedule requires a completed checkpoint and a larger --num-iterations')
-            print0(f"Extending completed {schedule_extension_start}-step schedule to {num_iterations} steps; "
-                   f"continuation holds LR multiplier at {args.final_lr_frac}, Muon momentum at 0.90, and weight decay at 0")
+            previous_budget = int(checkpoint_manifest['contract']['num_iterations'])
+            if not 0 <= meta_data['step'] <= previous_budget or num_iterations <= previous_budget:
+                raise ValueError('--resume-extend-schedule requires a larger --num-iterations and a checkpoint within its previous budget')
+            if meta_data['step'] == previous_budget and schedule_extension_start is None:
+                schedule_extension_start = previous_budget
+            if schedule_extension_start is not None:
+                print0(f"Extending schedule to {num_iterations} steps; continuation holds LR multiplier at "
+                       f"{args.final_lr_frac}, Muon momentum at 0.90, and weight decay at 0 after {schedule_extension_start}")
+            else:
+                print0(f"Extending unfinished {previous_budget}-step run at step {meta_data['step']} to "
+                       f"{num_iterations} total steps; LR/momentum/weight-decay use the longer schedule without restarting warmup")
     if meta_data['step']>num_iterations:
         raise ValueError('Checkpoint is past the configured training budget')
     if args.stop_after_step>0 and args.stop_after_step<=meta_data['step']:
@@ -594,7 +601,8 @@ def save_training_checkpoint():
         core_results=results,user_config=user_config,run_id=args.run_id,
         device_batch_size=args.device_batch_size,max_seq_len=args.max_seq_len,total_batch_size=total_batch_size,
         dataloader_state_dict=dict(dataloader_state_dict),
-        loop_state=dict(min_val_bpb=min_val_bpb,smooth_train_loss=smooth_train_loss,total_training_time=total_training_time))
+        loop_state=dict(min_val_bpb=min_val_bpb,smooth_train_loss=smooth_train_loss,total_training_time=total_training_time,
+                        schedule_extension_start=schedule_extension_start))
     with diag.span('checkpoint_save',checkpoint_step=step):
         checkpoints.save(step,orig_model.state_dict(),optimizer.state_dict(),metadata,
                          dict(loader=snapshot,rng=capture_rng(device)))

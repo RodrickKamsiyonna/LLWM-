@@ -88,15 +88,15 @@ def _read_file(store,record,cache=None):
         return torch.load(path,map_location='cpu',weights_only=False)
 
 
-def _is_completed_horizon_extension(checkpoint_contract,requested_contract,step):
-    """Allow only a strict continuation from a checkpoint at its old final step."""
+def _is_horizon_extension(checkpoint_contract,requested_contract,step):
+    """Allow an explicit longer budget, preserving every other contract field."""
     if not isinstance(checkpoint_contract,dict) or not isinstance(requested_contract,dict):
         return False
     old_horizon=checkpoint_contract.get('num_iterations')
     new_horizon=requested_contract.get('num_iterations')
     if not isinstance(old_horizon,int) or not isinstance(new_horizon,int):
         return False
-    if old_horizon!=step or new_horizon<=old_horizon:
+    if not 0 <= step <= old_horizon or new_horizon<=old_horizon:
         return False
     old=dict(checkpoint_contract); new=dict(requested_contract)
     old.pop('num_iterations'); new.pop('num_iterations')
@@ -118,7 +118,7 @@ def read_complete(root,step,rank=0,load_optimizer=False,expected_world=None,cont
         raise ValueError(f'Exact resume requires original world size {world}, got {expected_world}')
     contract_matches=(contract is None or manifest['contract']==contract)
     if (load_optimizer and not contract_matches and allow_horizon_extension
-            and _is_completed_horizon_extension(manifest['contract'],contract,step)):
+            and _is_horizon_extension(manifest['contract'],contract,step)):
         contract_matches=True
     if load_optimizer and not contract_matches:
         raise ValueError('Training contract mismatch: architecture, batch, objective, scheduler horizon or optimizer settings changed')
