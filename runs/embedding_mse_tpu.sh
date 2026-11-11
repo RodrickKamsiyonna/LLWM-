@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Single-host v6e-8 profile. Requires environment, tokenizer/data preflight and checkpoint root.
+# Embedding-MSE profile for TPU v4-16 or single-host eight-chip TPU. Requires environment, tokenizer/data preflight and checkpoint root.
 set -euo pipefail
 : "${RUN_ID:?Set a fresh run identifier}"
 export ATTEMPT_ID="${ATTEMPT_ID:-${RUN_ID}-a1}"
-export EXPECTED_WORLD_SIZE=8 EXPECTED_LOCAL_DEVICES=8
+export EXPECTED_WORLD_SIZE="${EXPECTED_WORLD_SIZE:-8}" EXPECTED_LOCAL_DEVICES="${EXPECTED_LOCAL_DEVICES:-8}"
 export DEPTH=15 PREDICTOR_LAYERS=6 ASPECT_RATIO=110 HEAD_DIM=128 WINDOW_PATTERN=L
 export ACTION_DIM=128 ACTION_LAYERS=9 ACTION_CONDITIONING=next_token
 export HEAD_SOURCE=predictor HEAD_TRAINING=joint HEAD_LAYERS=2
