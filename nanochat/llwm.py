@@ -36,6 +36,7 @@ class LLWMConfig(GPTConfig):
     memory_weight: float = 1.0
     memory_loss: str = "smooth_l1"
     token_objective: str = "ce"
+    embedding_distance_ce: bool = False
     embedding_variance_weight: float = 0.0
     embedding_std_floor: float = 0.8
     detach_embedding_target: bool = True
@@ -298,7 +299,16 @@ class LLWM(GPT):
                 components['embedding_variance'] = anti_collapse
                 components['embedding_variance_penalty'] = self.config.embedding_variance_weight * anti_collapse
                 components['embedding_rms'] = table.square().mean().sqrt().detach()
-                components['loss'] = mse + components['kl_penalty'] + components['embedding_variance_penalty']
+                if self.config.embedding_distance_ce:
+                    # Softmax(-MSE), temperature 1. The common -||prediction||^2/D
+                    # cancels in softmax. All vocabulary embeddings receive gradients.
+                    logits = self.embedding_logits(predicted_embedding)
+                    distance_ce = F.cross_entropy(logits.flatten(0, 1), targets.flatten(),
+                                                  ignore_index=-1, reduction='sum') / valid.sum().clamp(min=1)
+                    components['ce'] = distance_ce
+                    components['loss'] = distance_ce + components['kl_penalty']
+                else:
+                    components['loss'] = mse + components['kl_penalty'] + components['embedding_variance_penalty']
                 return components
             predicted = self.predict_features(memory, action)
             logits = self.decode_memory(predicted, detach=self.config.head_training == 'detached')

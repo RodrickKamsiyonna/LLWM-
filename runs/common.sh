@@ -126,3 +126,5 @@ prepare_data() {
     run_cmd env -u PJRT_DEVICE python -m scripts.tok_eval
     run_cmd env -u PJRT_DEVICE python -m nanochat.dataset -n "$DATA_SHARDS"
 }
+
+if [[ "${EMBEDDING_DISTANCE_CE:-0}" == "1" ]]; then LLWM_ARGS+=(--embedding-distance-ce); fi
