@@ -309,7 +309,7 @@ class LLWM(GPT):
                     distance_ce = F.cross_entropy(logits.flatten(0, 1), targets.flatten(),
                                                   ignore_index=-1, reduction='sum') / valid.sum().clamp(min=1)
                     components['ce'] = distance_ce
-                    components['loss'] = distance_ce + self.config.embedding_mse_weight * mse + components['kl_penalty']
+                    components['loss'] = self.config.ce_weight * distance_ce + self.config.embedding_mse_weight * mse + components['kl_penalty']
                 else:
                     components['loss'] = mse + components['kl_penalty'] + components['embedding_variance_penalty']
                 return components
