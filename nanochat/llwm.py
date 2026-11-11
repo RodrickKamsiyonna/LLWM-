@@ -37,6 +37,7 @@ class LLWMConfig(GPTConfig):
     memory_loss: str = "smooth_l1"
     token_objective: str = "ce"
     embedding_distance_ce: bool = False
+    embedding_mse_weight: float = 0.0
     embedding_variance_weight: float = 0.0
     embedding_std_floor: float = 0.8
     detach_embedding_target: bool = True
@@ -46,6 +47,8 @@ class LLWMConfig(GPTConfig):
     sigreg_knots: int = 17
 
     def __post_init__(self):
+        if not math.isfinite(self.embedding_mse_weight) or self.embedding_mse_weight < 0:
+            raise ValueError("embedding_mse_weight must be finite and nonnegative")
         if not math.isfinite(self.embedding_variance_weight) or self.embedding_variance_weight < 0:
             raise ValueError("embedding_variance_weight must be finite and nonnegative")
         if not math.isfinite(self.embedding_std_floor) or self.embedding_std_floor <= 0:
@@ -306,7 +309,7 @@ class LLWM(GPT):
                     distance_ce = F.cross_entropy(logits.flatten(0, 1), targets.flatten(),
                                                   ignore_index=-1, reduction='sum') / valid.sum().clamp(min=1)
                     components['ce'] = distance_ce
-                    components['loss'] = distance_ce + components['kl_penalty']
+                    components['loss'] = distance_ce + self.config.embedding_mse_weight * mse + components['kl_penalty']
                 else:
                     components['loss'] = mse + components['kl_penalty'] + components['embedding_variance_penalty']
                 return components
