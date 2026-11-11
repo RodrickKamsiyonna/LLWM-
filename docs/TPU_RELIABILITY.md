@@ -108,16 +108,22 @@ The actual parsed configuration and model configuration are printed in rank logs
 Changing training geometry/objectives/schedule after a checkpoint is rejected for
 exact resume. Preview without touching devices using `DRY_RUN=1`.
 
-### Continue a completed 6,000-step run for another 6,000 steps
+### Extend a run to 12,000 total steps
 
-The explicit `RESUME_EXTEND_SCHEDULE=1` mode is only for a complete checkpoint
-whose saved `num_iterations` equals its optimizer step. It permits changing the
-total horizon while requiring every other checkpoint contract field to match.
-The added phase holds the prior schedule's terminal values (LR multiplier at
-`FINAL_LR_FRAC`, Muon momentum `0.90`, weight decay `0`) so the first resumed
-update does not jump back up to the LR of a newly stretched 12,000-step schedule.
-All other exact-resume contract changes remain errors. Set `NUM_ITERATIONS` to
-the new final step, not to the number of additional steps.
+Set `RESUME_LATEST=1 RESUME_EXTEND_SCHEDULE=1 NUM_ITERATIONS=12000` to restore
+model, optimizer, RNG, loader and loop state from a complete checkpoint. Only
+the total horizon may differ from the saved training contract.
+
+For an unfinished run (for example step 1,500 of 6,000), the learning-rate,
+momentum and weight-decay curves use the new 12,000-step horizon at the restored
+optimizer step; warmup does not restart. This deliberately changes the remaining
+schedule, including weight decay, from the original shorter run.
+
+For a checkpoint exactly at its previous final step, the added phase holds the
+prior terminal values (LR multiplier `FINAL_LR_FRAC`, Muon momentum `0.90`, weight
+decay `0`). That terminal-hold state is saved for subsequent resumes.
+All other contract changes remain errors. `NUM_ITERATIONS` is the final step,
+not the number of additional steps.
 
 ## Monitor, stop and resume
 
