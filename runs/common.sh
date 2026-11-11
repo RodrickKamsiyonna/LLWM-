@@ -38,6 +38,9 @@ LLWM_ARGS=(--token-objective="${TOKEN_OBJECTIVE:-ce}" --head-layers="${HEAD_LAYE
 if [[ -n "${PREDICTOR_LAYERS:-}" ]]; then
     LLWM_ARGS+=(--predictor-layers="$PREDICTOR_LAYERS")
 fi
+if [[ "${TRAIN_EMBEDDING_TARGET:-0}" == 1 ]]; then
+    LLWM_ARGS+=(--train-embedding-target)
+fi
 PLAN_ARGS=(--eval-mode="$EVAL_MODE" --plan-goal="$PLAN_GOAL" --plan-iterations="$PLAN_ITERATIONS"
     --plan-lr="$PLAN_LR" --plan-execute-steps="$PLAN_EXECUTE_STEPS" --plan-seed="$PLAN_SEED")
 

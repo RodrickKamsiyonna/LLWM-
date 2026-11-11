@@ -77,3 +77,24 @@ def test_action_posterior_stops_both_observed_inputs():
     assert memory.grad is None
     assert m.transformer.wte.weight.grad is None
     assert any(p.grad is not None and p.grad.abs().sum() > 0 for p in m.action_encoder.parameters())
+
+
+def test_trainable_mse_target_receives_exact_target_gradient():
+    m = make_model()
+    m.config.detach_embedding_target = False
+    x, y = torch.tensor([[1, 2, 3]]), torch.tensor([[4, 5, 6]])
+    predictions = []
+    hook = m.embedding_head.register_forward_hook(lambda mod, args, out: predictions.append(out))
+    loss = m(x, y, return_loss_components=True)
+    hook.remove()
+    target = m.transformer.wte(y).detach().float()
+    expected = 2 * (target - predictions[0].detach().float()) / target.numel()
+    loss['loss'].backward()
+    torch.testing.assert_close(m.transformer.wte.weight.grad[y[0]], expected[0])
+    assert m.transformer.wte.weight.grad[y[0]].abs().sum() > 0
+    # Enabling the MSE target gradient does not enable posterior-input gradients.
+    m.zero_grad(set_to_none=True)
+    memory = torch.randn(1, 3, 32, requires_grad=True)
+    mean, log_std = m.token_posterior(memory, y)
+    (mean.square().mean() + log_std.square().mean()).backward()
+    assert memory.grad is None and m.transformer.wte.weight.grad is None

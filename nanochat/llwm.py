@@ -36,6 +36,7 @@ class LLWMConfig(GPTConfig):
     memory_weight: float = 1.0
     memory_loss: str = "smooth_l1"
     token_objective: str = "ce"
+    detach_embedding_target: bool = True
     head_layers: int = 2
     sigreg_weight: float = 0.0
     sigreg_projections: int = 1024
@@ -271,7 +272,10 @@ class LLWM(GPT):
             action = mean + log_std.exp() * torch.randn_like(mean)
             if self.config.token_objective == 'embedding_mse':
                 predicted_embedding = self.predict_embedding(memory, action)
-                target_embedding = self.transformer.wte(targets.clamp(min=0)).detach().float()
+                target_embedding = self.transformer.wte(targets.clamp(min=0))
+                if self.config.detach_embedding_target:
+                    target_embedding = target_embedding.detach()
+                target_embedding = target_embedding.float()
                 valid = targets.ne(-1)
                 mse = ((predicted_embedding - target_embedding).square().mean(-1) * valid).sum() / valid.sum().clamp(min=1)
                 components = self._loss_components(mse.new_zeros(()), mse.new_zeros(()), mean, log_std, valid)
