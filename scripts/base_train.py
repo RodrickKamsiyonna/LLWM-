@@ -769,6 +769,8 @@ while True:
     # one oversized graph containing both the accumulated loss reporting and
     # all optimizer updates, exhausting HBM on large TPU models.
     component_names = ('ce', 'ce_excess', 'ce_penalty', 'memory_loss', 'kl', 'kl_total', 'kl_excess', 'kl_penalty', 'sigreg', 'sigreg_penalty', 'embedding_mse', 'embedding_variance', 'embedding_variance_penalty', 'embedding_rms')
+    if args.token_objective == 'embedding_mse' and args.embedding_distance_ce:
+        component_names = ('ce', 'kl_total', 'kl_penalty', 'embedding_rms')
     metric_tensors = [train_loss.detach().float()]
     if loss_components is not None:
         metric_tensors.extend(loss_components[name].detach().float() for name in component_names)
