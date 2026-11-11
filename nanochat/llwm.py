@@ -196,7 +196,15 @@ class LLWM(GPT):
 
     def token_posterior(self, memory, next_tokens):
         """q(action | current latent, observed next token), with joint gradients."""
-        target_embeddings = self.transformer.wte(next_tokens.clamp(min=0)).to(memory.dtype)
+        target_embeddings = self.transformer.wte(next_tokens.clamp(min=0))
+        # Match LLWM_micro: the observed next-token embedding is a detached
+        # teacher in BOTH the regression target and the posterior input.
+        # Stop posterior gradients into both observed inputs; the predictor's
+        # separate memory input still trains the causal compressor.
+        if self.config.token_objective == 'embedding_mse':
+            memory = memory.detach()
+            target_embeddings = target_embeddings.detach()
+        target_embeddings = target_embeddings.to(memory.dtype)
         mean, log_std = self.action_encoder(torch.cat((memory, target_embeddings), dim=-1)).chunk(2, dim=-1)
         return mean.float(), log_std.float().clamp(-5, 2)
 

@@ -57,3 +57,23 @@ def test_stagewise_embedding_gradient_and_two_round_mpc():
     r=mpc_plan(m,torch.tensor([[1,2]]),torch.tensor([4]),horizon=4,execute_steps=2,iterations=2,lr=.001)
     assert r['tokens'].shape==(1,4) and r['goal_objective']=='goal_mse'
     assert all(x['goal_mse']<=x['initial_loss'] for x in r['round_history'])
+
+
+def test_future_token_teacher_does_not_update_embedding_table():
+    m = make_model()
+    # Distinct IDs distinguish context gradients from future-teacher gradients.
+    x, y = torch.tensor([[1, 2, 3]]), torch.tensor([[4, 5, 6]])
+    m(x, y, return_loss_components=True)['loss'].backward()
+    grad = m.transformer.wte.weight.grad
+    assert grad is not None and grad[1:4].abs().sum() > 0
+    assert grad[4:7].eq(0).all()
+
+
+def test_action_posterior_stops_both_observed_inputs():
+    m = make_model()
+    memory = torch.randn(1, 3, 32, requires_grad=True)
+    mean, log_std = m.token_posterior(memory, torch.tensor([[4, 5, 6]]))
+    (mean.square().mean() + log_std.square().mean()).backward()
+    assert memory.grad is None
+    assert m.transformer.wte.weight.grad is None
+    assert any(p.grad is not None and p.grad.abs().sum() > 0 for p in m.action_encoder.parameters())
