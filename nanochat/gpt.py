@@ -434,6 +434,11 @@ class GPT(nn.Module):
         value_embeds_params = list(self.value_embeds.parameters())
         embedding_params = list(self.transformer.wte.parameters())
         lm_head_params = list(self.lm_head.parameters())
+        # Embedding regression bypasses the vocabulary projection. Keep its
+        # inactive parameters separate so replicated group activity is uniform.
+        inactive_head_params = []
+        if hasattr(self, 'embedding_head'):
+            inactive_head_params, lm_head_params = lm_head_params, []
         if hasattr(self, 'llm_head_mlp'):
             # LLWM's memory MLP follows the output head's unembedding schedule.
             lm_head_params.extend(self.llm_head_mlp.parameters())
@@ -459,6 +464,9 @@ class GPT(nn.Module):
             dict(kind='adamw', params=x0_params, lr=scalar_lr, betas=(0.96, 0.95), eps=1e-10, weight_decay=0.0),  # higher beta1 for x0
             dict(kind='adamw', params=smear_params, lr=0.2, betas=(0.8, 0.95), eps=1e-10, weight_decay=0.0),
         ]
+        if inactive_head_params:
+            param_groups.append(dict(kind='adamw', params=inactive_head_params,
+                lr=unembedding_lr * dmodel_lr_scale, betas=(0.8, 0.96), eps=1e-10, weight_decay=0.01))
         # Muon groups (matrix params, grouped by shape for stacking)
         for shape in sorted({p.shape for p in matrix_params}):
             group_params = [p for p in matrix_params if p.shape == shape]

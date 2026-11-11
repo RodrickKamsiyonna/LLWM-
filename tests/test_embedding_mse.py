@@ -28,6 +28,9 @@ def test_masked_embedding_loss_gradients_and_optimizer_coverage():
         assert any(p.grad is not None and p.grad.abs().sum()>0 for p in module.parameters())
     opt=m.setup_optimizer();grouped=[p for g in opt.param_groups for p in g['params']]
     assert len(grouped)==len(set(grouped))==len(list(m.parameters()))
+    for group in opt.param_groups:
+        flags=[p.grad is not None for p in group['params']]
+        assert not any(flags) or all(flags), 'partially active optimizer group'
 
 
 def test_nearest_embedding_decoding():
