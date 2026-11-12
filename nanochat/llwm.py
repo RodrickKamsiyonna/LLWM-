@@ -36,6 +36,7 @@ class LLWMConfig(GPTConfig):
     memory_weight: float = 1.0
     memory_loss: str = "smooth_l1"
     token_objective: str = "ce"
+    embedding_temperature: float = 1.0
     embedding_distance_ce: bool = False
     embedding_mse_weight: float = 0.0
     embedding_variance_weight: float = 0.0
@@ -47,6 +48,8 @@ class LLWMConfig(GPTConfig):
     sigreg_knots: int = 17
 
     def __post_init__(self):
+        if not math.isfinite(self.embedding_temperature) or self.embedding_temperature <= 0:
+            raise ValueError("embedding_temperature must be finite and positive")
         if not math.isfinite(self.embedding_mse_weight) or self.embedding_mse_weight < 0:
             raise ValueError("embedding_mse_weight must be finite and nonnegative")
         if not math.isfinite(self.embedding_variance_weight) or self.embedding_variance_weight < 0:
@@ -303,9 +306,9 @@ class LLWM(GPT):
                 components['embedding_variance_penalty'] = self.config.embedding_variance_weight * anti_collapse
                 components['embedding_rms'] = table.square().mean().sqrt().detach()
                 if self.config.embedding_distance_ce:
-                    # Softmax(-MSE), temperature 1. The common -||prediction||^2/D
+                    # Softmax(-MSE / temperature). The common -||prediction||^2/D
                     # cancels in softmax. All vocabulary embeddings receive gradients.
-                    logits = self.embedding_logits(predicted_embedding)
+                    logits = self.embedding_logits(predicted_embedding) / self.config.embedding_temperature
                     distance_ce = F.cross_entropy(logits.flatten(0, 1), targets.flatten(),
                                                   ignore_index=-1, reduction='sum') / valid.sum().clamp(min=1)
                     components['ce'] = distance_ce

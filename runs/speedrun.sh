@@ -33,6 +33,7 @@ if [[ "${RESUME_EXTEND_SCHEDULE:-0}" == 1 && "${RESUME_LATEST:-0}" != 1 ]]; then
 fi
 if [[ "${RESUME_LATEST:-0}" == 1 ]]; then
     RELIABILITY_ARGS+=(--resume-latest)
+    [[ "${RESUME_CHANGE_EMBEDDING_TEMPERATURE:-0}" != 1 ]] || RELIABILITY_ARGS+=(--resume-change-embedding-temperature)
     [[ "${RESUME_EXTEND_SCHEDULE:-0}" != 1 ]] || RELIABILITY_ARGS+=(--resume-extend-schedule)
 elif [[ -n "${RESUME_FROM_STEP:-}" ]]; then
     RELIABILITY_ARGS+=(--resume-from-step="$RESUME_FROM_STEP")

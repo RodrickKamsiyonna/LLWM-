@@ -61,6 +61,7 @@ parser.add_argument("--model-type", choices=["llwm", "gpt"], default="llwm", hel
 parser.add_argument("--predictor-layers", type=int, default=None, help="LLWM predictor depth (default: ceil(3 * depth / 4))")
 parser.add_argument("--action-dim", type=int, default=8)
 parser.add_argument('--token-objective', choices=['ce', 'embedding_mse'], default='ce')
+parser.add_argument('--embedding-temperature', type=float, default=1.0, help='temperature for training distance CE; planning embedding rollout is unchanged')
 parser.add_argument('--embedding-mse-weight', type=float, default=0.)
 parser.add_argument('--embedding-distance-ce', action='store_true', help='train predicted embeddings with softmax of negative MSE distances over the vocabulary')
 parser.add_argument('--embedding-variance-weight', type=float, default=0.)
@@ -145,6 +146,8 @@ parser.add_argument('--checkpoint-shared', action='store_true', help='assert fil
 parser.add_argument('--checkpoint-cache', help='per-host download cache (one optimizer download per host)')
 parser.add_argument('--checkpoint-keep', type=int, default=1)
 parser.add_argument('--resume-latest', action='store_true')
+parser.add_argument('--resume-change-embedding-temperature', action='store_true',
+                    help='explicitly permit changing only the distance CE temperature while restoring full optimizer/runtime state')
 parser.add_argument('--resume-extend-schedule', action='store_true',
                     help='extend the total budget from a compatible checkpoint; unfinished runs use the longer schedule, completed runs hold terminal schedule values')
 parser.add_argument('--stop-after-step', type=int, default=-1, help='qualification cutoff; does NOT change the total schedule or token budget')
@@ -158,6 +161,8 @@ args = parser.parse_args()
 args.run_id = args.run_id or ('local-' + uuid.uuid4().hex[:12])
 if args.resume_latest and args.resume_from_step >= 0:
     parser.error('Use resume-latest OR resume-from-step')
+if args.resume_change_embedding_temperature and not args.resume_latest:
+    parser.error('--resume-change-embedding-temperature requires --resume-latest')
 if args.resume_extend_schedule and not args.resume_latest:
     parser.error('--resume-extend-schedule requires --resume-latest')
 for name in ('eval_every','core_metric_every','sample_every','planning_every','save_every'):
@@ -258,7 +263,7 @@ def build_model_meta(depth):
     model_dim = ((base_dim + args.head_dim - 1) // args.head_dim) * args.head_dim
     num_heads = model_dim // args.head_dim
     config_cls = LLWMConfig if args.model_type == "llwm" else GPTConfig
-    extra = dict(embedding_mse_weight=args.embedding_mse_weight, embedding_distance_ce=args.embedding_distance_ce, embedding_variance_weight=args.embedding_variance_weight, embedding_std_floor=args.embedding_std_floor, detach_embedding_target=not args.train_embedding_target, token_objective=args.token_objective, head_layers=args.head_layers, sigreg_weight=args.sigreg_weight,
+    extra = dict(embedding_temperature=args.embedding_temperature, embedding_mse_weight=args.embedding_mse_weight, embedding_distance_ce=args.embedding_distance_ce, embedding_variance_weight=args.embedding_variance_weight, embedding_std_floor=args.embedding_std_floor, detach_embedding_target=not args.train_embedding_target, token_objective=args.token_objective, head_layers=args.head_layers, sigreg_weight=args.sigreg_weight,
                  sigreg_projections=args.sigreg_projections, sigreg_knots=args.sigreg_knots,
                  predictor_layers=args.predictor_layers, action_dim=args.action_dim,
                  action_layers=args.action_layers, target_kl=args.target_kl,
@@ -531,7 +536,8 @@ contract=dict(model_config=model_config_kwargs,world_size=ddp_world_size,
 cache=args.checkpoint_cache or str(Path('/tmp/llwm-checkpoint-cache')/args.run_id)
 checkpoints=TrainingCheckpoints(checkpoint_dir,args.run_id,ddp_rank,ddp_world_size,device,contract,
     keep=args.checkpoint_keep,shared=args.checkpoint_shared,cache=cache,
-    allow_horizon_extension=args.resume_extend_schedule)
+    allow_horizon_extension=args.resume_extend_schedule,
+    allow_temperature_change=args.resume_change_embedding_temperature)
 checkpoints.verify_storage()
 if resuming:
     resume_step=checkpoints.latest() if args.resume_latest else args.resume_from_step
@@ -540,6 +546,9 @@ if resuming:
         orig_model.load_state_dict(model_data,strict=True,assign=False)
         optimizer.load_state_dict(optimizer_data)
         del model_data,optimizer_data
+        if args.resume_change_embedding_temperature:
+            old_temperature = checkpoint_manifest['contract']['model_config'].get('embedding_temperature', 1.0)
+            print0(f"Resuming optimizer/runtime state with distance CE temperature {old_temperature} -> {args.embedding_temperature}")
         schedule_extension_start = meta_data.get('loop_state', {}).get('schedule_extension_start')
         if args.resume_extend_schedule:
             previous_budget = int(checkpoint_manifest['contract']['num_iterations'])

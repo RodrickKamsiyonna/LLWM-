@@ -103,8 +103,24 @@ def _is_horizon_extension(checkpoint_contract,requested_contract,step):
     return old==new
 
 
+def _resume_contract_matches(saved, requested, step, allow_horizon_extension=False, allow_temperature_change=False):
+    # Legacy embedding checkpoints predate this field and always used temperature 1.
+    old, new = dict(saved), dict(requested)
+    for value in (old, new):
+        if value.get('model_config', {}).get('architecture') == 'llwm':
+            value['model_config'] = dict(value['model_config'])
+            value['model_config'].setdefault('embedding_temperature', 1.0)
+    if allow_temperature_change:
+        for value in (old, new):
+            config = value.get('model_config', {})
+            if config.get('token_objective') != 'embedding_mse' or not config.get('embedding_distance_ce'):
+                return False
+            config.pop('embedding_temperature', None)
+    return old == new or (allow_horizon_extension and _is_horizon_extension(old, new, step))
+
+
 def read_complete(root,step,rank=0,load_optimizer=False,expected_world=None,contract=None,cache=None,load_model=True,
-                  allow_horizon_extension=False):
+                  allow_horizon_extension=False,allow_temperature_change=False):
     store=ArtifactStore(root)
     name=f'complete_{step:06d}.json'
     if not store.exists(name): raise ValueError(f'Incomplete or missing checkpoint: {root}/{name}')
@@ -116,10 +132,8 @@ def read_complete(root,step,rank=0,load_optimizer=False,expected_world=None,cont
         raise ValueError('Checkpoint manifest lacks rank runtime files')
     if load_optimizer and expected_world is not None and expected_world!=world:
         raise ValueError(f'Exact resume requires original world size {world}, got {expected_world}')
-    contract_matches=(contract is None or manifest['contract']==contract)
-    if (load_optimizer and not contract_matches and allow_horizon_extension
-            and _is_horizon_extension(manifest['contract'],contract,step)):
-        contract_matches=True
+    contract_matches=(contract is None or _resume_contract_matches(
+        manifest['contract'], contract, step, allow_horizon_extension, allow_temperature_change))
     if load_optimizer and not contract_matches:
         raise ValueError('Training contract mismatch: architecture, batch, objective, scheduler horizon or optimizer settings changed')
     records=[manifest['model'],manifest['metadata'],*manifest['runtime'].values(),*manifest['optimizer'].values()]
@@ -145,12 +159,13 @@ def read_complete(root,step,rank=0,load_optimizer=False,expected_world=None,cont
 
 class TrainingCheckpoints:
     def __init__(self,root,run_id,rank,world_size,device,contract,keep=1,shared=False,cache=None,
-                 allow_horizon_extension=False):
+                 allow_horizon_extension=False,allow_temperature_change=False):
         if keep and keep<1: raise ValueError('Checkpoint retention must be positive (or 0 for unlimited)')
         self.store=ArtifactStore(root)
         self.root,self.run_id,self.rank,self.world_size=str(root),run_id,rank,world_size
         self.device,self.contract,self.keep,self.cache=device,contract,keep,cache
         self.allow_horizon_extension=allow_horizon_extension
+        self.allow_temperature_change=allow_temperature_change
         if world_size>1 and not(self.store.cloud or shared):
             raise ValueError('Distributed checkpoints require gs:// or explicitly configured --checkpoint-shared filesystem; rank-local paths cannot be resumed across hosts')
 
@@ -171,7 +186,8 @@ class TrainingCheckpoints:
 
     def load(self,step):
         return read_complete(self.root,step,self.rank,True,self.world_size,self.contract,self.cache,
-                             allow_horizon_extension=self.allow_horizon_extension)
+                             allow_horizon_extension=self.allow_horizon_extension,
+                             allow_temperature_change=self.allow_temperature_change)
 
     def save(self,step,model,optimizer,metadata,runtime):
         # Already committed checkpoints are immutable; no overwrite on a resumed boundary.
